@@ -1,7 +1,7 @@
 bang-desktop
 ============
 
-A Python 3 Desktop Enviorment
+A Ruby Desktop Environment
 
 __WARNING:__
 This is under heavy development and not ready for production use.
