@@ -21,12 +21,33 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+class Dir
+    def Dir.walk dir, &block
+        root = dir
+        dirs, files = []
+        Dir.each(dir) do |item|
+            if File.directory? item
+                dirs << item
+            else
+                files << item
+            end
+        end
+        block(root, dirs, files)
+        dirs.each do |dir|
+            Dir.walk(dir, block)
+        end
+    end
+
+    def walk &block 
+        Dir.walk(self.path, block)
+    end
+end
 
 class String
     # adapted from http://jeffgardner.org/2011/08/04/rails-string-to-boolean-method/
     def to_b
-        return true if self =~ /(true|t|yes|y|1)$/i
-        return false if self.blank? || self =~ /(false|f|no|n|0)$/i
+        return true if self == true || self =~ /(true|t|yes|y|1)$/i
+        return false if self == false || self.blank? || self =~ /(false|f|no|n|0)$/i
         raise ArgumentError.new("invalid value for Boolean: \"#{self}\"")
     end
 
@@ -74,7 +95,7 @@ class IniFile < Array
             sect = nil
             for line in @text.delete('#.*$').split('\n')
                 if (line =~ /\[\.+\]/)
-                    if sect != nil self.push(sect) end
+                    if sect != nil self << sect end
                     sect = Section.new(line.delete '[]')
                 elsif (line =~ /\w+\=.+/)
                     key, value = line.split('=')
@@ -85,7 +106,7 @@ class IniFile < Array
     end
 
     def get_section name
-        each do |section|
+        self.each do |section|
             if section.name == name
                 return section
             end

@@ -21,10 +21,12 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-require '.\bang\xdg\core'
-require '.\bang\xdg\constants'
+require 'bang\xdg\core'
+require 'bang\xdg\constants'
 
-$CONST['XDG APP DIRS'] = $CONST['XDG DATA DIRS'].map {|d| File.join d, '/applications'}.select {|d| File.exists? d}
+$CONST['XDG APP DIRS'] = $CONST['XDG DATA DIRS'].map {|d| File.join d, '/applications'}.select {|d| Dir.exists? d}
+$CONST['XDG DIR DIRS'] = $CONST['XDG DATA DIRS'].map {|d| File.join d, '/desktop-directories'}.select {|d| Dir.exists? d}
+
 
 class DesktopEntry < IniFile
     attr_reader :data
