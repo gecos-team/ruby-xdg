@@ -29,7 +29,7 @@ class MenuParser < LibXML::XML::Parser
     attr_reader :app_directories, :dir_directories, :merge_directories
     attr_reader :menu
 
-    def MenuParser.configure menu, f
+    def MenuParser.configure(menu, f)
         @menu = menu
         @app_directories = Array.new
         @dir_directories = Array.new
@@ -39,8 +39,7 @@ class MenuParser < LibXML::XML::Parser
 
     def parse 
         doc = super
-        path = '\Menu\AppDir:\Menu\DirectoryDir:\Menu\MergeDir:\Menu\DefaultAppDirs:\Menu\DefaultDirectoryDirs:\Menu\DefaultMergeDirs'
-        doc.find(path).each do |node|
+        doc.root.each_element { |node|
             case node.name
             when 'AppDir'
                 @app_directories << Tools.get_text node
@@ -54,52 +53,38 @@ class MenuParser < LibXML::XML::Parser
                 @dir_directories |= $CONST['XDG DIR DIRS']
             when 'DefaultMergeDirs'
                 @merge_directories |= $CONST['XDG MERGE DIRS']
+            when 'Name'
+                menu.name = self.get_text node
+            when 'Directory'
+                menu.directory = DesktopEntry.new(self.get_text node)
+            when 'OnlyUnallocated'
+                menu.only_unallocated = true
+            when 'NotOnlyUnallocated'
+                menu.only_unallocated = false
+            when 'Deleted'
+                menu.deleted = true
+            when 'NotDeleted'
+                menu.deleted = false
+            when 'Include', 'Exclude'
+                conditions = Tools.handle_conditions node
+                case node.name
+                when 'Include'
+                    menu.includes = conditions
+                when 'Exclude'
+                    menu.excludes = conditions                    
+                end
+            when ''
             end
-        end
-        xobj = doc.find_first('\Menu')
-        Tools.read_elements @menu, xobj.first, handle_subs = false
-        xobj = doc.find('\Menu\Menu')
-        xobj.each do |node|
-            sub = SubMenu.new
-            @menu.submenus << sub
-            Tools.read_elements sub, node
-        end
+        }
     end
 
     module Tools
 
-        def get_text elem
+        def get_text(elem)
             elem.children[0].text if node.next?
         end
 
-        def read_elements menu, elem, handle_subs = true
-            elem.each_element { |node| 
-                case node.name
-                when 'Name'
-                    menu.name = self.get_text node
-                when 'Directory'
-                    menu.directory = DesktopEntry.new(self.get_text node)
-                when 'OnlyUnallocated'
-                    menu.only_unallocated = true
-                when 'NotOnlyUnallocated'
-                    menu.only_unallocated = false
-                when 'Deleted'
-                    menu.deleted = true
-                when 'NotDeleted'
-                    menu.deleted = false
-                when 'Include', 'Exclude'
-                    conditions = Tools.handle_conditions node
-                    case node.name
-                    when 'Include'
-                        menu.includes = conditions
-                    when 'Exclude'
-                        menu.excludes = conditions                    
-                    end
-                end                                                 
-            }
-        end
-
-        def handle_conditions node
+        def handle_conditions(node)
             stack = Array.new()
             def recurse elem
                 elem.each_element { |e|
@@ -111,41 +96,91 @@ class MenuParser < LibXML::XML::Parser
                     when 'Or'
                         stack << [:or, :enter]
                         stack << [:or, :exit]
-                        pos = stack.lenth - 1                        
+                        pos = stack.lenth - 1
                     when 'Not'
                         stack << [:not, :enter]
                         stack << [:not, :exit]
-                        pos = stack.lenth - 1                        
+                        pos = stack.lenth - 1
                     when 'Filename'
                         stack.insert pos, [:file, Tools.get_text e]
                         pos += 1
                     when 'Category'
-                        stack.insert pos, [:catagory, Tools.get_text e]
+                        stack.insert pos, [:category, Tools.get_text e]
                         pos += 1     
                     end
                     recurse e if e.has_children?
                 }
             end
             pos = 0
-            recurse node
-            return Evaluator.new(stack)
+            recurse(node)
+            return Cond::Evaluator.new(stack)
         end 
     end
 end
 
-class Evaluator
-    attr_reader :node
+module Cond
+    class Node 
+        attr_reader :parent, :conditions, :children
 
-    def initialize stack
-        @node 
+        def initalize(parent = nil) 
+            @parent = parent
+            @condition = Array.new
+            @children = Array.new
+            @parent.children << self if parent != nil 
+        end
+
+        def parent=(node) 
+            @parent = node
+            @parent.children << self
+            return @parent
+        end
+
+        def <<(con, arg) 
+            @conditions << [con, arg]
+        end
     end
 
-    def eval app 
-        @node.eval(app)
-    end
+    class Evaluator
+        attr_reader :node, :stack
 
-    def empty?
-        return if node == nil
+        def initialize(stack)
+            @stack = stack
+            @node = nil
+            @stack.each_with_index { |con, arg, index|
+                if arg == :enter
+                    if con == :and 
+                        @node = @node == nil ? And.new : And.new(@node)
+                    elsif con == :or
+                        @node = @node == nil ? Or.new : Or.new(@node)
+                    elsif con == :not
+                        @node = @node == nil ? Not.new : Not.new(@node)
+                    end
+                elsif con == :file || con == :category
+                    @node = Or.new() if @node == nil
+                    @node << con, arg
+                elsif arg == :exit
+                    if @node.parent != nil
+                        @node = @node.parent
+                    else
+                        if index != (stack.length - 1)
+                            @node = @node.parent Or.new
+                        end
+                    end
+                end
+            }
+        end
+
+        def eval(app) 
+            @node.eval(app)
+        end
+
+        def empty?
+            return node == nil ? true : false
+        end
+
+        def to_s 
+            return @stack.to_s 
+        end
     end
 end
 
@@ -155,7 +190,7 @@ class SubMenu
     attr_accessor :entries, :submenus
     attr_accessor :only_unallocated, :deleted
 
-    def initalize name = nil, parent
+    def initalize(name = nil, parent = nil)
         @name = name
         @parent = parent
         @submenus = Array.new
@@ -167,8 +202,7 @@ class SubMenu
     end
 
     def copy
-        menu = SubMenu.new
-        menu.name = @name
+        menu = SubMenu.new @name, @parent
         menu.layout = @layout
         menu.directory = @directory
         menu.includes = @includes
@@ -184,16 +218,14 @@ end
 class Menu < SubMenu
     attr_reader :parser, :info
 
-    def initialize path = nil
-        self.parse path
+    def initialize(path = nil)
+        self.parse(path) if path != nil
     end
 
     def parse path
-        if path != nil
-            @info = File.new path
-            @parser = MenuParser.configure(self, path)
-            @parser.parse
-        end
+        @info = File.new path
+        @parser = MenuParser.configure(self, path)
+        @parser.parse
     end
 
     def as_submenu
