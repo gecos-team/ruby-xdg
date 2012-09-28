@@ -24,64 +24,130 @@
 require 'libxml'
 require 'bang\xdg\applications'
 
+$CONST['XDG MERGE DIRS'] = $CONST['XDG CONFIG DIRS'].map {|d| File.join d, '/menu/applications-merged'}.select{|d| Dir.exists? d}
 
-class MenuParser < LibXML::XML::Parser
-    attr_reader :app_directories, :dir_directories, :merge_directories
-    attr_reader :menu
 
-    def MenuParser.configure(menu, f)
-        @menu = menu
-        @app_directories = Array.new
-        @dir_directories = Array.new
-        @merge_directories = Array.new
-        self.file(f)
-    end
+module MenuParser
+    class Parser < LibXML::XML::Parser
+        attr_reader :app_directories, :dir_directories, :merge_directories
+        attr_reader :menu
 
-    def parse 
-        doc = super
-        doc.root.each_element { |node|
-            case node.name
-            when 'AppDir'
-                @app_directories << Tools.get_text node
-            when 'DirectoryDir'
-                @dir_directories << Tools.get_text node
-            when 'MergeDir'
-                @merge_directories << Tools.get_text node
-            when 'DefaultAppDirs'
-                @app_directories |= $CONST['XDG APP DIRS']
-            when 'DefaultDirectoryDirs'
-                @dir_directories |= $CONST['XDG DIR DIRS']
-            when 'DefaultMergeDirs'
-                @merge_directories |= $CONST['XDG MERGE DIRS']
-            when 'Name'
-                menu.name = self.get_text node
-            when 'Directory'
-                menu.directory = DesktopEntry.new(self.get_text node)
-            when 'OnlyUnallocated'
-                menu.only_unallocated = true
-            when 'NotOnlyUnallocated'
-                menu.only_unallocated = false
-            when 'Deleted'
-                menu.deleted = true
-            when 'NotDeleted'
-                menu.deleted = false
-            when 'Include', 'Exclude'
-                conditions = Tools.handle_conditions node
-                case node.name
-                when 'Include'
-                    menu.includes = conditions
-                when 'Exclude'
-                    menu.excludes = conditions                    
-                end
-            when ''
-            end
-        }
-    end
+        def Parser.configure(menu, f)
+            @menu = menu
+            @app_directories = Array.new
+            @dir_directories = Array.new
+            @merge_directories = Array.new
+            self.file(f)
+        end
 
-    module Tools
+        def parse 
+            doc = super
+            Tools.read_elements(@menu, doc.root)
+        end
 
+        private
         def get_text(elem)
             elem.children[0].text if node.next?
+        end
+
+        def read_elements(menu, elem)
+            elem.each_element { |node|
+                case node.name
+                when 'AppDir'
+                    @app_directories << self.get_text(node)
+                when 'DirectoryDir'
+                    @dir_directories << self.get_text(node)
+                when 'MergeDir'
+                    @merge_directories << self.get_text(node)
+                when 'DefaultAppDirs'
+                    @app_directories |= $CONST['XDG APP DIRS']
+                when 'DefaultDirectoryDirs'
+                    @dir_directories |= $CONST['XDG DIR DIRS']
+                when 'DefaultMergeDirs'
+                    @merge_directories |= $CONST['XDG MERGE DIRS']
+                when 'Name'
+                    menu.name = self.get_text(node)
+                when 'Directory'
+                    menu.directory = DesktopEntry.new(self.get_text node)
+                when 'OnlyUnallocated'
+                    menu.only_unallocated = true
+                when 'NotOnlyUnallocated'
+                    menu.only_unallocated = false
+                when 'Deleted'
+                    menu.deleted = true
+                when 'NotDeleted'
+                    menu.deleted = false
+                when 'Include', 'Exclude'
+                    stack = Array.new()
+                    def recurse elem
+                        elem.each_element { |e|
+                            case e.name
+                            when 'And'
+                                stack.insert pos, [:and, :enter]
+                                stack.insert pos, [:and, :exit]
+                                pos = stack.lenth - 1
+                            when 'Or'
+                                stack.insert pos, [:or, :enter]
+                                stack.insert pos, [:or, :exit]
+                                pos = stack.lenth - 1
+                            when 'Not'
+                                stack.insert pos, [:not, :enter]
+                                stack.insert pos, [:not, :exit]
+                                pos = stack.lenth - 1
+                            when 'Filename'
+                                stack.insert pos, [:file, self.get_text e]
+                                pos += 1
+                            when 'Category'
+                                stack.insert pos, [:category, self.get_text e]
+                                pos += 1     
+                            end
+                            recurse e if e.has_children?
+                        }
+                    end; pos = 0; recurse(node)
+                    case node.name #revaluating 'when Include, Exclude'
+                    when 'Include'
+                        menu.includes = Cond::Evaluator.new(stack)
+                    when 'Exclude'
+                        menu.excludes = Cond::Evaluator.new(stack)
+                    end
+                when 'MergeFile'
+                    attrib = node['type']
+                    p = self.get_text(node)
+                    d, f = File.split(p)
+                    m = Menu.new
+                    case attrib
+                    when 'path', attrib.blank?
+                        p = File.join(File.dirname menu.info.path, f) if !File.exists?(p)
+                    when 'parent'
+                        @merge_directories.each { |dir|
+                            if dir != File.dirname(menu.info.path)
+                                tp = File.join(dir, f)
+                                p = tp if File.exists?(tp)
+                            end
+                        }
+                    end
+                    if File.exists? p
+                        m.parse p
+                        menu.submenus << m.as_submenu
+                    end
+                when 'MergeDir'
+                    p = self.get_text(node)
+                    if !Dir.exists?(p) 
+                        dir = File.join(File.dirname menu.info.path, p)
+                        if Dir.exists? dir
+                            for e in Dir.glob(File.join(dir, '*.menu')) 
+                                sub = Menu.new
+                                sub.parse e
+                                sub = sub.as_submenu
+                                menu.submenus << sub
+                            end
+                        end
+                    end
+                when 'Move'
+                when 'Layout', 'DefaultLayout'
+                when 'Menu'
+                end
+            }
         end
 
         def handle_conditions(node)
@@ -90,16 +156,16 @@ class MenuParser < LibXML::XML::Parser
                 elem.each_element { |e|
                     case e.name
                     when 'And'
-                        stack << [:and, :enter]
-                        stack << [:and, :exit]
+                        stack.insert pos, [:and, :enter]
+                        stack.insert pos, [:and, :exit]
                         pos = stack.lenth - 1
                     when 'Or'
-                        stack << [:or, :enter]
-                        stack << [:or, :exit]
+                        stack.insert pos, [:or, :enter]
+                        stack.insert pos, [:or, :exit]
                         pos = stack.lenth - 1
                     when 'Not'
-                        stack << [:not, :enter]
-                        stack << [:not, :exit]
+                        stack.insert pos, [:not, :enter]
+                        stack.insert pos, [:not, :exit]
                         pos = stack.lenth - 1
                     when 'Filename'
                         stack.insert pos, [:file, Tools.get_text e]
@@ -116,72 +182,159 @@ class MenuParser < LibXML::XML::Parser
             return Cond::Evaluator.new(stack)
         end 
     end
-end
 
-module Cond
-    class Node 
-        attr_reader :parent, :conditions, :children
+    module Cond
+        class Node 
+            attr_reader :parent, :conditions, :children
 
-        def initalize(parent = nil) 
-            @parent = parent
-            @condition = Array.new
-            @children = Array.new
-            @parent.children << self if parent != nil 
+            def initalize(parent = nil) 
+                @parent = parent
+                @condition = Array.new
+                @children = Array.new
+                @parent << self if parent != nil 
+            end
+
+            def parent=(node) 
+                @parent = node
+                @parent.children << self
+                return @parent
+            end
+
+            def eval(var)
+                # unimplemented see subclasses
+            end
+
+            def <<(node) 
+                @children << node
+            end
+
+            def +(cond) 
+                @conditions << cond
+            end
         end
 
-        def parent=(node) 
-            @parent = node
-            @parent.children << self
-            return @parent
+        class And < Node
+            def eval(app)
+                bools = Array.new
+                if @conditions.empty? 
+                    bool = false
+                else
+                    @conditions.each { |arg, con|
+                        if con == :file
+                            name = File.baseneme(app.info.path)
+                            bools << name == arg
+                        elsif con == :category
+                            bools << app.categories.include? arg
+                        end
+                        bool = !bools.include? false
+                    }
+                end
+                if @children.empty?
+                    return bool
+                else
+                    children = Array.new(@children.length) {|i| @children[i].eval(app)}
+                    child_bool = !children.include? false
+                    return bool and child_bool
+                end
+            end
+
         end
 
-        def <<(con, arg) 
-            @conditions << [con, arg]
+        class Or < Node
+            def eval(app)
+                bools = Array.new
+                if @conditions.empty? 
+                    bool = false
+                else
+                    @conditions.each { |arg, con|
+                        if con == :file
+                            name = File.baseneme(app.info.path)
+                            bools << name == arg
+                        elsif con == :category
+                            bools << app.categories.include? arg
+                        end
+                        bool = bools.include? true
+                    }
+                end
+                if @children.empty?
+                    return bool
+                else
+                    children = Array.new(@children.length) {|i| @children[i].eval(app)}
+                    child_bool = children.include? true
+                    return bool or child_bool
+                end
+            end
+
         end
-    end
 
-    class Evaluator
-        attr_reader :node, :stack
+        class Not < Node
+            def eval(app)
+                bools = Array.new
+                if @conditions.empty? 
+                    bool = false
+                else
+                    @conditions.each { |arg, con|
+                        if con == :file
+                            name = File.baseneme(app.info.path)
+                            bools << name == arg
+                        elsif con == :category
+                            bools << app.categories.include? arg
+                        end
+                        bool = bools.include? true
+                    }
+                end
+                if @children.empty?
+                    return !bool
+                else
+                    children = Array.new(@children.length) {|i| @children[i].eval(app)}
+                    child_bool = children.include? true
+                    return !bool or child_bool
+                end
+            end
 
-        def initialize(stack)
-            @stack = stack
-            @node = nil
-            @stack.each_with_index { |con, arg, index|
-                if arg == :enter
-                    if con == :and 
-                        @node = @node == nil ? And.new : And.new(@node)
-                    elsif con == :or
-                        @node = @node == nil ? Or.new : Or.new(@node)
-                    elsif con == :not
-                        @node = @node == nil ? Not.new : Not.new(@node)
-                    end
-                elsif con == :file || con == :category
-                    @node = Or.new() if @node == nil
-                    @node << con, arg
-                elsif arg == :exit
-                    if @node.parent != nil
-                        @node = @node.parent
-                    else
-                        if index != (stack.length - 1)
-                            @node = @node.parent Or.new
+        end
+
+        class Evaluator
+            attr_reader :node, :stack
+
+            def initialize(stack)
+                @stack = stack
+                @node = nil; @stack.each_with_index { |con, arg, index|
+                    if arg == :enter
+                        if con == :and 
+                            @node = @node == nil ? And.new : And.new(@node)
+                        elsif con == :or
+                            @node = @node == nil ? Or.new : Or.new(@node)
+                        elsif con == :not
+                            @node = @node == nil ? Not.new : Not.new(@node)
+                        end
+                    elsif con == :file || con == :category
+                        @node = Or.new() if @node == nil
+                        @node + [con, arg]
+                    elsif arg == :exit
+                        if @node.parent != nil
+                            @node = @node.parent
+                        else
+                            if index != (stack.length - 1)
+                                @node = @node.parent Or.new
+                            end
                         end
                     end
-                end
-            }
-        end
+                }
+            end
 
-        def eval(app) 
-            @node.eval(app)
-        end
+            def eval(app) 
+                @node.eval(app)
+            end
 
-        def empty?
-            return node == nil ? true : false
-        end
+            def empty?
+                return node == nil ? true : false
+            end
 
-        def to_s 
-            return @stack.to_s 
+            def to_s 
+                return @stack.to_s 
+            end
         end
-    end
 end
 
 class SubMenu
@@ -216,6 +369,7 @@ class SubMenu
 end
 
 class Menu < SubMenu
+    include MenuParser
     attr_reader :parser, :info
 
     def initialize(path = nil)
@@ -224,7 +378,7 @@ class Menu < SubMenu
 
     def parse path
         @info = File.new path
-        @parser = MenuParser.configure(self, path)
+        @parser = Parser.configure(self, path)
         @parser.parse
     end
 
