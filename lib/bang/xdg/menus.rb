@@ -23,12 +23,13 @@
 
 require 'libxml'
 require 'bang\xdg\applications'
+require 'bang\xdg\core'
 
 $CONST['XDG MERGE DIRS'] = $CONST['XDG CONFIG DIRS'].map {|d| File.join d, '/menu/applications-merged'}.select{|d| Dir.exists? d}
 
 
-module MenuParser
-    class Parser < LibXML::XML::Parser
+module Menus
+    class MenuParser < LibXML::XML::Parser
         attr_reader :app_directories, :dir_directories, :merge_directories
         attr_reader :menu
 
@@ -144,8 +145,58 @@ module MenuParser
                         end
                     end
                 when 'Move'
+                    @renamer = MatchSort::Renamer.new()
+                    match = nil; replace = nil 
+                    node.each_element { |e|
+                        case e.name
+                        when 'Old'
+                            match = self.get_text(e)
+                        when 'New'
+                            replace = self.get_text(e)
+                        end
+                        if match != nil && replace != nil
+                            @renamer[match] = replace
+                            match = nil; replace = nil
+                        end
+                    }
                 when 'Layout', 'DefaultLayout'
+                    case node.name
+                    when 'Layout'
+                        layout = MatchSort::Layout.new()
+                    when 'DefaultLayout'
+                        layout = MatchSort::DefaultLayout.new()
+                        layout.show_empty = node['show_empty'].to_b
+                        layout.inline = node['inline'].to_i
+                        layout.inline_limit = node['inline_limit'].to_i
+                        layout.inline_header = node['inline_header'].to_b
+                        layout.inline_alias = node['inline_alias'].to_b
+                    end
+                    node.each_element { |e|
+                        case node.name
+                        when 'Filename'
+                            f = $APPS[self.get_text e]
+                            if f != nil 
+                                layout.add(f)
+                            end
+                        when 'MenuName'
+                            m = MatchSort::MenuName.new()
+                            m.show_empty = node['show_empty'].to_b
+                            m.inline = node['inline'].to_i
+                            m.inline_limit = node['inline_limit'].to_i
+                            m.inline_header = node['inline_header'].to_b
+                            m.inline_alias = node['inline_alias'].to_b
+                            layout.add(m)
+                        when 'Merge'
+                            layout.add(Merge.new node['type'])
+                        when 'Separator'
+                            layout.add(Separator.new)
+                        end        
+                    }
+                    menu.layout = layout
                 when 'Menu'
+                    sub = SubMenu.new
+                    menu.submenus << sub
+                    self.read_elements(sub, node)
                 end
             }
         end
@@ -168,10 +219,10 @@ module MenuParser
                         stack.insert pos, [:not, :exit]
                         pos = stack.lenth - 1
                     when 'Filename'
-                        stack.insert pos, [:file, Tools.get_text e]
+                        stack.insert pos, [:file, self.get_text e]
                         pos += 1
                     when 'Category'
-                        stack.insert pos, [:category, Tools.get_text e]
+                        stack.insert pos, [:category, self.get_text e]
                         pos += 1     
                     end
                     recurse e if e.has_children?
@@ -234,7 +285,7 @@ module MenuParser
                 else
                     children = Array.new(@children.length) {|i| @children[i].eval(app)}
                     child_bool = !children.include? false
-                    return bool and child_bool
+                    return bool && child_bool
                 end
             end
 
@@ -261,7 +312,7 @@ module MenuParser
                 else
                     children = Array.new(@children.length) {|i| @children[i].eval(app)}
                     child_bool = children.include? true
-                    return bool or child_bool
+                    return bool || child_bool
                 end
             end
 
@@ -288,7 +339,7 @@ module MenuParser
                 else
                     children = Array.new(@children.length) {|i| @children[i].eval(app)}
                     child_bool = children.include? true
-                    return !bool or child_bool
+                    return !bool || child_bool
                 end
             end
 
@@ -297,30 +348,32 @@ module MenuParser
         class Evaluator
             attr_reader :node, :stack
 
-            def initialize(stack)
+            def initialize(stack = nil)
                 @stack = stack
-                @node = nil; @stack.each_with_index { |con, arg, index|
-                    if arg == :enter
-                        if con == :and 
-                            @node = @node == nil ? And.new : And.new(@node)
-                        elsif con == :or
-                            @node = @node == nil ? Or.new : Or.new(@node)
-                        elsif con == :not
-                            @node = @node == nil ? Not.new : Not.new(@node)
-                        end
-                    elsif con == :file || con == :category
-                        @node = Or.new() if @node == nil
-                        @node + [con, arg]
-                    elsif arg == :exit
-                        if @node.parent != nil
-                            @node = @node.parent
-                        else
-                            if index != (stack.length - 1)
-                                @node = @node.parent Or.new
+                if stack != nil
+                    @node = nil; @stack.each_with_index { |con, arg, index|
+                        if arg == :enter
+                            if con == :and 
+                                @node = @node == nil ? And.new : And.new(@node)
+                            elsif con == :or
+                                @node = @node == nil ? Or.new : Or.new(@node)
+                            elsif con == :not
+                                @node = @node == nil ? Not.new : Not.new(@node)
+                            end
+                        elsif con == :file || con == :category
+                            @node = Or.new() if @node == nil
+                            @node + [con, arg]
+                        elsif arg == :exit
+                            if @node.parent != nil
+                                @node = @node.parent
+                            else
+                                if index != (stack.length - 1)
+                                    @node = @node.parent Or.new
+                                end
                             end
                         end
-                    end
-                }
+                    }
+                end
             end
 
             def eval(app) 
@@ -328,13 +381,66 @@ module MenuParser
             end
 
             def empty?
-                return node == nil ? true : false
+                node == nil ? false : true
             end
 
             def to_s 
-                return @stack.to_s 
+                @stack.to_s 
             end
         end
+    end
+
+    module MatchSort
+        class Merge
+        end
+
+        class Seperator
+            def to_s
+                '---------sep---------'
+            end
+        end
+
+        module Conditions 
+            attr_reader :show_empty
+            attr_reader :inline, :inline_limit, :inline_header, :inline_alias
+        end
+
+        class MenuName
+            include Conditions
+        end
+
+        class DefaultLayout < Layout
+            include Conditions
+        end
+
+        class Layout
+        end
+
+        class Renamer
+            def initialize(data)
+                @data = Hash.new
+            end
+
+            def add(match, replace)
+                @data[match] = replace
+            end
+
+            def []=(match, replace)
+                @data[match] = replace
+            end
+
+            def [](old)
+                @data[old]
+            end
+
+            def rename(string)
+                @data.each do |match, replace|
+                    string.gsub(/#{match}/, replace)
+                end
+            end
+        end
+
+    end
 end
 
 class SubMenu
@@ -355,7 +461,7 @@ class SubMenu
     end
 
     def copy
-        menu = SubMenu.new @name, @parent
+        menu = SubMenu.new(@name, @parent)
         menu.layout = @layout
         menu.directory = @directory
         menu.includes = @includes
@@ -369,7 +475,6 @@ class SubMenu
 end
 
 class Menu < SubMenu
-    include MenuParser
     attr_reader :parser, :info
 
     def initialize(path = nil)
@@ -378,7 +483,7 @@ class Menu < SubMenu
 
     def parse path
         @info = File.new path
-        @parser = Parser.configure(self, path)
+        @parser = Menus::MenuParser.configure(self, path)
         @parser.parse
     end
 

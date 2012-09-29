@@ -64,6 +64,10 @@ class DesktopEntry < IniFile
             @startup_wm_class = @data['StartupWMClass']
         end
     end
+
+    def eql?(entry)
+        @name == entry.name && File.basename(self.info.path) == File.basename(entry.info.path)
+    end
 end
 
 $APPS = Hash.new
