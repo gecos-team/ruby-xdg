@@ -392,6 +392,10 @@ module Menus
 
     module MatchSort
         class Merge
+            attr_reader :type
+            def initalize(type)
+                @type = type
+            end
         end
 
         class Seperator
