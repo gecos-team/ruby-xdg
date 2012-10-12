@@ -21,8 +21,19 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+module Boolean
+end
+
+class TrueClass
+    include Boolean
+end
+
+class FalseClass
+    include Boolean
+end
+
 class Dir
-    def Dir.walk dir, &block
+    def Dir.walk(dir, &pass)
         root = dir
         dirs, files = []
         Dir.each(dir) do |item|
@@ -32,18 +43,22 @@ class Dir
                 files << item
             end
         end
-        block(root, dirs, files)
+        yield root, dirs, files
         dirs.each do |dir|
             Dir.walk(dir, block)
         end
     end
 
-    def walk &block 
+    def walk &block
         Dir.walk(self.path, block)
     end
 end
 
 class String
+    def blank?
+        return self.empty? || self == /\s+/ ? true : false 
+    end
+
     # adapted from http://jeffgardner.org/2011/08/04/rails-string-to-boolean-method/
     def to_b
         return true if self == true || self =~ /(true|t|yes|y|1)$/i
@@ -51,65 +66,80 @@ class String
         raise ArgumentError.new("invalid value for Boolean: \"#{self}\"")
     end
 
-    def to_a chars = '|;,'
+    def to_a(chars = /\s*[|;,]\s*/)
         return self.split(chars)
     end
 end
 
 class Section < Hash
     attr_reader :head
-    def initalize name, fields = nil
+    def initialize(name, fields = nil)
         super(fields)
-        self.default ''
         @head = name
     end
 
     def [](key, type = nil)
-        var = super[key]
+        var = super(key)
         return case type
         when :Int
-            var.to_i
+            var == nil ? 0 : var.to_i
         when :Float
-            var.to_f
+            var == nil ? 0.0 : var.to_f
         when :List
-            var.to_a
+            var == nil ? [] : var.strip.to_a
         when :Bool
-            var.to_b
+            var == nil ? false : var.to_b
         else
             var
         end
     end
 end
 
-class IniFile < Array
-    attr_reader :info
-    def initalize path = nil
-        super()
-        self.parse path
+class IniFile
+    include Enumerable
+    attr_reader :info, :data
+    def initialize(path = nil)
+        self.parse(path)
     end
 
-    def parse path
+    def parse(path)
         if path != nil
             @info = File.new(path)
             @text = IO.read(@info)
+            @data = Array.new
             sect = nil
-            for line in @text.delete('#.*$').split('\n')
-                if (line =~ /\[\.+\]/)
-                    if sect != nil self << sect end
+            for line in @text.delete('#.*$').split(/\n/)
+                if (line =~ /\[.+\]/)
+                    @data << sect if sect != nil
                     sect = Section.new(line.delete '[]')
-                elsif (line =~ /\w+\=.+/)
+                elsif (line =~ /.+=.+/)
                     key, value = line.split('=')
                     sect[key] = value
                 end
             end
+            @data << sect if @data.empty?
         end
     end
 
-    def get_section name
-        self.each do |section|
-            if section.name == name
-                return section
+    def get_section(name)
+        if name.instance_of?(String)
+            self.each do |section|
+                if section.head == name
+                    return section
+                end
             end
+        elsif name.instance_of?(Regexp)
+            self.each do |section|
+                if section.head =~ name
+                    return section
+                end
+            end
+        end       
+    end
+
+    def each(&pass)
+        for section in @data 
+            yield section
         end
     end
 
@@ -117,3 +147,7 @@ class IniFile < Array
        return @text
     end
 end
+
+
+
+

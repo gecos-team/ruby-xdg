@@ -21,7 +21,7 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-def env var, default
+def env(var, default)
     if ENV.value?(var) and ENV.key?(var)
         item = ENV[var]
         if item.blank?
@@ -35,11 +35,16 @@ def env var, default
 end
 
 $HOME = ENV['HOME']
-$UID = ENV['UID']
+$UID = %x{id -ur}.delete "\n"
 
-$CONST = Hash['USER HOME' => $HOME, 'USER_ID' => $UID]
-$CONST['XDG DATA HOME'] = env 'XDG_DATA_HOME', default = [File.join($HOME, './local')]
-$CONST['XDG CONFIG HOME'] = env 'XDG_CONFIG_HOME', default = [File.join($HOME, './config')]
-$CONST['XDG CACHE HOME'] = env 'XDG_CACHE_HOME', default = [File.join($HOME, './cache')]
-$CONST['XDG DATA DIRS'] = env 'XDG_DATA_DIRS', default = ['/usr/local/share', '/usr/share']
-$CONST['XDG CONFIG DIRS'] = env 'XDG_CONFIG_DIRS', default = ['/etc/xdg']
+$CONST = Hash['USER HOME' => $HOME, 'USER ID' => $UID]
+$CONST['XDG DATA HOME'] = env(var = 'XDG_DATA_HOME', default = [File.join($HOME, '.local')])
+$CONST['XDG CONFIG HOME'] = env(var = 'XDG_CONFIG_HOME', default = [File.join($HOME, '.config')])
+$CONST['XDG CACHE HOME'] = env(var = 'XDG_CACHE_HOME', default = [File.join($HOME, '.cache')])
+$CONST['XDG DATA DIRS'] = env(var ='XDG_DATA_DIRS', default = ['/usr/local/share', '/usr/share'])
+$CONST['XDG CONFIG DIRS'] = env(var = 'XDG_CONFIG_DIRS', default = ['/etc/xdg'])
+
+if __FILE__ == $PROGRAM_NAME
+    puts $UID
+    puts $CONST
+end

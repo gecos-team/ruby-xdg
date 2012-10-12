@@ -21,8 +21,8 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-require 'bang\xdg\core'
-require 'bang\xdg\constants'
+require_relative 'core'
+require_relative 'constants'
 
 $CONST['XDG APP DIRS'] = $CONST['XDG DATA DIRS'].map {|d| File.join d, '/applications'}.select {|d| Dir.exists? d}
 $CONST['XDG DIR DIRS'] = $CONST['XDG DATA DIRS'].map {|d| File.join d, '/desktop-directories'}.select {|d| Dir.exists? d}
@@ -35,46 +35,77 @@ class DesktopEntry < IniFile
     attr_reader :app_exec, :type_exec, :terminal
     attr_reader :no_display, :hidden, :only_show_in, :not_show_in
     attr_reader :startup_notify, :startup_wm_class
-    def initalize path = nil
+    def initalize(path)
         super()
         self.parse path
     end
 
-    def parse path
+    def parse(path)
         super path
         if self.info != nil
-            @data = self.get_section('Desktop Entry')
-            @name = @data['Name']
-            @generic_name = @data['Generic Name']
-            @encoding = @data['Encoding']
-            @type = @data['Type']
-            @icon = @data['Icon']
-            @comment = @data['Comment']
-            @mime_type = @data['MimeType']
-            @categories = @data['Categories', :List]
-            @url = @data['URL']
-            @app_exec = @data['AppExec']
-            @type_exec = @data['TypeExec']
-            @terminal = @data['Terminal', :List]
-            @no_display = @data['NoDisplay', :Bool]
-            @hidden = @data['Hidden', :Bool]
-            @only_show_in = @data['OnlyShowIn', :Bool]
-            @not_show_in = @data['NotShowIn', :Bool]
-            @startup_notify = @data['StartupNotify', :Bool]
-            @startup_wm_class = @data['StartupWMClass']
+            @main = self.get_section('Desktop Entry')
+            @name = @main['Name']
+            @generic_name = @main['Generic Name']
+            @encoding = @main['Encoding']
+            @type = @main['Type']
+            @icon = @main['Icon']
+            @comment = @main['Comment']
+            @mime_type = @main['MimeType']
+            @categories = @main['Categories', :List]
+            @url = @main['URL']
+            @app_exec = @main['AppExec']
+            @type_exec = @main['TypeExec']
+            @terminal = @main['Terminal', :List]
+            @no_display = @main['NoDisplay', :Bool]
+            @hidden = @main['Hidden', :Bool]
+            @only_show_in = @main['OnlyShowIn', :Bool]
+            @not_show_in = @main['NotShowIn', :Bool]
+            @startup_notify = @main['StartupNotify', :Bool]
+            @startup_wm_class = @main['StartupWMClass']
         end
     end
 
     def eql?(entry)
         @name == entry.name && File.basename(self.info.path) == File.basename(entry.info.path)
     end
+
+    def to_s
+        return "#{@name} #{File.basename(self.info.path)}"
+    end
+
+    def self.by_name(name)
+        self.new(AppCache::APPS[name])
+    end
 end
 
-$APPS = Hash.new
-for dir in $CONST['XDG APP DIRS']
-    Dir.foreach(dir) do |file|
-        if file =~ /.+\.desktop$/
-            $APPS[file] = DesktopEntry.new File.join(dir, file)
+module AppCache
+    #this is a global application cache
+    APPS = Hash.new
+    for dir in $CONST['XDG APP DIRS']
+        Dir.foreach(dir) do |file|
+            if file =~ /.+\.desktop$/
+                APPS[file] = File.join(dir, file)
+            end
         end
+    end
+
+    def AppCache.each(&pass)
+        for name, file in APPS
+            yield name, file
+        end
+    end
+
+    def AppCache.each_app(&pass)
+        for name, file in APPS
+            yield DesktopEntry.new(file)
+        end
+    end
+end
+
+if __FILE__ == $PROGRAM_NAME
+    ini = IniFile.new('/usr/share/applications/ubuntu-software-center.desktop')
+    ini.each do |section|
+        puts section.head
+        puts section
     end
 end
