@@ -349,6 +349,7 @@ module Cond
     end
 end
 
+<<<<<<< HEAD
 class Merge
     attr_accessor :type
     def initialize(type)
@@ -357,6 +358,14 @@ class Merge
             @type = type.to_sym
         else
             @type = :all
+=======
+    module MatchSort
+        class Merge
+            attr_reader :type
+            def initalize(type)
+                @type = type
+            end
+>>>>>>> 3ab63edf7240d4e6a0d9ddaa68addc7593875da9
         end
     end
 end
