@@ -37,11 +37,11 @@ class DesktopEntry < IniFile
     attr_reader :startup_notify, :startup_wm_class
     def initalize(path)
         super()
-        self.parse path
+        self.parse(path)
     end
 
     def parse(path)
-        super path
+        super(path)
         if self.info != nil
             @main = self.get_section('Desktop Entry')
             @name = @main['Name']
@@ -58,8 +58,8 @@ class DesktopEntry < IniFile
             @terminal = @main['Terminal', :List]
             @no_display = @main['NoDisplay', :Bool]
             @hidden = @main['Hidden', :Bool]
-            @only_show_in = @main['OnlyShowIn', :Bool]
-            @not_show_in = @main['NotShowIn', :Bool]
+            @only_show_in = @main['OnlyShowIn']
+            @not_show_in = @main['NotShowIn']
             @startup_notify = @main['StartupNotify', :Bool]
             @startup_wm_class = @main['StartupWMClass']
         end
@@ -70,7 +70,7 @@ class DesktopEntry < IniFile
     end
 
     def to_s
-        return "#{@name} #{File.basename(self.info.path)}"
+        return "\"#{@name}\" #{File.basename(self.info.path)}"
     end
 
     def self.by_name(name)

@@ -32,6 +32,12 @@ class FalseClass
     include Boolean
 end
 
+class NilClass
+    def to_s
+        return 'nil'
+    end
+end
+
 class Dir
     def Dir.walk(dir, &pass)
         root = dir

@@ -81,13 +81,13 @@ class MenuParser
                 stack = Array.new(); pos = 0
                 recurse = Proc.new do |elem|
                     elem.each_element do |e|
-                        arg = e.name.downcase.to_sym
+                        arg = e.name.to_sym
                         case arg
-                        when :and, :or, :not
-                            stack << [arg, :enter]
+                        when :And, :Or, :Not
+                            stack << [arg, :Enter]
                             recurse.call(e)
-                            stack << [arg, :exit]
-                        when :filename, :category
+                            stack << [arg, :Exit]
+                        when :Filename, :Category
                             stack << [arg, e.content]
                         end
                     end
@@ -157,14 +157,12 @@ class MenuParser
                     layout.inline_limit = node['inline_limit']
                     layout.inline_header = node['inline_header']
                     layout.inline_alias = node['inline_alias']
-                    layout.assign_defaults_if
                 end
                 node.each_element do |e|
                     case e.name
                     when 'Filename'
                         f = AppCache::APPS[e.content]
                         if f != nil
-                            puts f
                             layout.add(DesktopEntry.new f)
                         end
                     when 'Menuname'
@@ -196,53 +194,55 @@ module Cond
     class Node 
         attr_reader :parent, :conditions, :children
 
-        def initalize(parent = nil) 
-            @parent = parent
-            @condition = Array.new
+        def initialize(parent = nil)
+            @conditions = Array.new
             @children = Array.new
-            @parent << self if parent != nil 
+            parent.child(self) if parent != nil
         end
 
-        def add_parent(node) 
+        def parent=(node) 
             @parent = node
-            @parent.children << self #make itself the child of the parent 
-            return @parent
+            @parent.children << self #make itself the child of the parent
         end
 
         def eval(var)
             # unimplemented see subclasses
         end
 
-        def <<(node) 
-            @children << node
+        def child(node)
+            node.parent = self
         end
 
-        def +(cond) 
+        def property(cond)
             @conditions << cond
         end
     end
 
     class And < Node
+        def initialize(parent = nil)
+            super(parent)
+        end
+
         def eval(app)
             bools = Array.new
             if @conditions.empty? 
                 bool = false
             else
-                @conditions.each do |arg, con|
-                    if con == :filename
-                        name = File.baseneme(app.info.path)
-                        bools << name == arg
-                    elsif con == :category
+                @conditions.each do |con, arg|
+                    if con == :Filename
+                        name = File.basename(app.info.path)
+                        bools << (name == arg)
+                    elsif con == :Category
                         bools << app.categories.include?(arg)
                     end
-                    bool = !bools.include?(false)
                 end
+                bool = !(bools.include? false)
             end
             if @children.empty?
                 return bool
             else
                 children = Array.new(@children.length) {|i| @children[i].eval(app)}
-                child_bool = !children.include?(false)
+                child_bool = !(children.include? false)
                 return bool && child_bool
             end
         end
@@ -250,20 +250,24 @@ module Cond
     end
 
     class Or < Node
+        def initialize(parent = nil)
+            super(parent)
+        end
+
         def eval(app)
             bools = Array.new
             if @conditions.empty? 
                 bool = false
             else
-                @conditions.each do |arg, con|
-                    if con == :filename
-                        name = File.baseneme(app.info.path)
-                        bools << name == arg
-                    elsif con == :category
+                @conditions.each do |con, arg|
+                    if con == :Filename
+                        name = File.basename(app.info.path)
+                        bools << (name == arg)
+                    elsif con == :Category
                         bools << app.categories.include?(arg)
                     end
-                    bool = bools.include?(true)
                 end
+                bool = bools.include?(true)
             end
             if @children.empty?
                 return bool
@@ -277,16 +281,20 @@ module Cond
     end
 
     class Not < Node
+        def initialize(parent = nil)
+            super(parent)
+        end
+
         def eval(app)
             bools = Array.new
             if @conditions.empty? 
                 bool = false
             else
-                @conditions.each do |arg, con|
-                    if con == :filename
-                        name = File.baseneme(app.info.path)
-                        bools << name == arg
-                    elsif con == :category
+                @conditions.each do |con, arg|
+                    if con == :Filename
+                        name = File.basename(app.info.path)
+                        bools << (name == arg)
+                    elsif con == :Category
                         bools << app.categories.include?(arg)
                     end
                     bool = bools.include?(true)
@@ -309,28 +317,32 @@ module Cond
         def initialize(stack = nil)
             @stack = stack
             if stack != nil
-                @node = nil; @stack.each_with_index do |con, arg, index|
-                    if arg == :enter
-                        if con == :and 
+                @node = nil; @stack.each_with_index do |elem, index|
+                    con, arg = elem
+                    if arg == :Enter
+                        if con == :And 
                             @node = @node == nil ? And.new : And.new(@node)
-                        elsif con == :or
+                        elsif con == :Or
                             @node = @node == nil ? Or.new : Or.new(@node)
-                        elsif con == :not
+                        elsif con == :Not
                             @node = @node == nil ? Not.new : Not.new(@node)
                         end
-                    elsif con == :filename || con == :category
+                    elsif con == :Filename || con == :Category
                         @node = Or.new() if @node == nil
-                        @node + [con, arg]
-                    elsif arg == :exit
+                        @node.property [con, arg]
+                    elsif arg == :Exit
                         if @node.parent != nil
                             @node = @node.parent
                         else
                             if index != (stack.length - 1)
-                                #set the parent and return it
-                                @node = @node.add_parent(Or.new)
+                                @node.parent = Or.new
+                                @node = @node.parent
                             end
                         end
                     end
+                end
+                while @node.parent != nil
+                    @node = @node.parent
                 end
             end
         end
@@ -349,7 +361,6 @@ module Cond
     end
 end
 
-<<<<<<< HEAD
 class Merge
     attr_accessor :type
     def initialize(type)
@@ -358,14 +369,6 @@ class Merge
             @type = type.to_sym
         else
             @type = :all
-=======
-    module MatchSort
-        class Merge
-            attr_reader :type
-            def initalize(type)
-                @type = type
-            end
->>>>>>> 3ab63edf7240d4e6a0d9ddaa68addc7593875da9
         end
     end
 end
@@ -618,11 +621,11 @@ class Menu < SubMenu
             else
                 item.entries = item.submenus
             end
-            # AppCache.each_app do |app|
-            #     if item.included?(app) && !item.excluded?(app)
-            #         item.entries << app unless item.entries.include?(app)
-            #     end
-            # end
+            AppCache.each_app do |app|
+                if item.included?(app) && !(item.excluded? app)
+                    item.entries << app unless item.entries.include?(app)
+                end
+            end
         end
         @submenus = @submenus.sort{|a, b| a.name <=> b.name}
         if item.layout != nil
@@ -649,4 +652,14 @@ end
 if __FILE__ == $PROGRAM_NAME
     menu = Menu.new '/etc/xdg/menus/applications.menu'
     puts menu
+    #puts menu
+    # a = Cond::Or.new()
+    # a.property([:Filename, "ubuntu-software-center.desktop"])
+    # AppCache.each_app do |app|
+    #     if a.eval(app)
+    #         puts app
+    #         puts app.categories
+    #         puts Separator.new
+    #     end
+    # end
 end
