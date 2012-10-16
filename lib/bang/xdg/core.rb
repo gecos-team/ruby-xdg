@@ -77,15 +77,16 @@ class String
     end
 end
 
-class Section < Hash
-    attr_reader :head
-    def initialize(name, fields = nil)
-        super(fields)
+class Section
+    attr_reader :head, :fields
+    def initialize(name, fields = Hash.new)
+        @fields = fields
+        @fields.default " "
         @head = name
     end
 
     def [](key, type = nil)
-        var = super(key)
+        var = @fields[key]
         return case type
         when :Int
             var == nil ? 0 : var.to_i
@@ -98,6 +99,14 @@ class Section < Hash
         else
             var
         end
+    end
+
+    def []=(key, value)
+        @fields[key] = value
+    end 
+
+    def to_s
+        "#{@head} #{@fields}"
     end
 end
 
@@ -115,7 +124,7 @@ class IniFile
             @data = Array.new
             sect = nil
             for line in @text.delete('#.*$').split(/\n/)
-                if (line =~ /\[.+\]/)
+                if (line =~ /^\[.+\]$/)
                     @data << sect if sect != nil
                     sect = Section.new(line.delete '[]')
                 elsif (line =~ /.+=.+/)
@@ -154,6 +163,10 @@ class IniFile
     end
 end
 
-
+if __FILE__ == $PROGRAM_NAME
+    ini = IniFile.new('/usr/share/applications/firefox.desktop')
+    sect = ini.get_section('Desktop Entry')
+    puts sect['Categories', :List]
+end
 
 

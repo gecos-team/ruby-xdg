@@ -25,7 +25,7 @@ require 'libxml'
 require_relative 'applications'
 require_relative 'core'
 
-$CONST['XDG MERGE DIRS'] = $CONST['XDG CONFIG DIRS'].map {|d| File.join d, '/menu/applications-merged'}.select{|d| Dir.exists? d}
+$CONST['XDG MERGE DIRS'] = $CONST['XDG CONFIG DIRS'].map {|d| File.join d, '/menus/applications-merged'}.select{|d| Dir.exists? d}
 
 
 class MenuParser
@@ -42,7 +42,16 @@ class MenuParser
 
     def parse(f)
         doc = XML::Document.file(f)
-        read_elements(@menu, doc.root)
+        head = doc.root 
+        for dir in $CONST['XDG MERGE DIRS']
+            Dir.glob("#{dir}/*.menu") do |item|
+                merge = XML::Document.file(item)
+                merge.root.each_element do |sub|
+                    head << doc.import(sub) if sub.name == 'Menu'
+                end
+            end
+        end
+        read_elements(@menu, head)
     end
 
     protected
@@ -161,9 +170,9 @@ class MenuParser
                 node.each_element do |e|
                     case e.name
                     when 'Filename'
-                        f = AppCache::APPS[e.content]
-                        if f != nil
-                            layout.add(DesktopEntry.new f)
+                        app = AppCache::APPS[e.content]
+                        if app != nil
+                            layout.add(app)
                         end
                     when 'Menuname'
                         m = MenuName.new(e.content)
@@ -225,7 +234,7 @@ module Cond
 
         def eval(app)
             bools = Array.new
-            if @conditions.empty? 
+            if @conditions.empty?
                 bool = false
             else
                 @conditions.each do |con, arg|
@@ -297,8 +306,8 @@ module Cond
                     elsif con == :Category
                         bools << app.categories.include?(arg)
                     end
-                    bool = bools.include?(true)
                 end
+                bool = bools.include?(true)
             end
             if @children.empty?
                 return !bool
@@ -474,30 +483,33 @@ class Layout
         @entries << entry
     end
 
-    def arrange(menu)
+    def arrange(submenus)
         new_menu = Array.new
         @entries.each do |entry|
             if entry.instance_of?(Merge)
                 if entry.type == :menus
-                    new_menu |= menu.submenus.select{|item| item.is_a?(SubMenu)}
+                    new_menu |= submenus.select{|item| item.is_a?(SubMenu)}
                 elsif entry.type == :files
-                    new_menu |= menu.submenus.select{|item| item.is_a?(DesktopEntry)}
+                    new_menu |= submenus.select{|item| item.is_a?(DesktopEntry)}
                 elsif entry.type == :all
-                    new_menu |= menu.submenus
+                    new_menu |= submenus
                 end
             elsif entry.instance_of?(MenuName)
                 match = nil
-                menu.submenus.each do |item|
+                submenus.each do |item|
                     if item.instance_of?(SubMenu) 
                         match = item if item.name == entry.name
                     end
                 end
                 new_menu << match 
-            else
-                new_menu << entry #includes DesktopEntries and Seperators
+            elsif entry.instance_of?(DesktopEntry)
+                new_menu.delete(entry) if new_menu.include?(entry)
+                new_menu << entry
+            elsif entry.instance_of?(Separator)
+                new_menu << entry
             end
         end
-        return new_menu
+    return new_menu.empty? ? submenus : new_menu
     end
 
     def each(&pass)
@@ -555,6 +567,7 @@ class SubMenu
         @deleted = false
         @includes = Cond::Evaluator.new 
         @excludes = Cond::Evaluator.new
+        @layout = DefaultLayout.new
     end
 
     def each_entry(&pass)
@@ -608,35 +621,26 @@ class Menu < SubMenu
         @info = File.new(path)
         @parser = MenuParser.new(self)
         @parser.parse(path)
-        self.build()
     end
 
     def build
-        for item in @submenus
-            if submenus != nil
-                item.submenus = item.submenus.sort{|a, b| a.name <=> b.name}
-            end
-            if item.layout != nil
-                item.entries = item.layout.arrange(self)
-            else
-                item.entries = item.submenus
-            end
-            AppCache.each_app do |app|
-                if item.included?(app) && !(item.excluded? app)
-                    item.entries << app unless item.entries.include?(app)
+        recurse = Proc.new do |menu|
+            menu.entries = menu.layout.arrange(menu.submenus)
+            menu.entries.each do |entry|
+                if entry.is_a?(SubMenu)
+                    AppCache.each_app do |app|
+                        if entry.included?(app) && !entry.excluded?(app)
+                            entry.entries << app
+                        end
+                    end
+                    recurse.call(entry) if !entry.submenus.empty?
                 end
             end
-        end
-        @submenus = @submenus.sort{|a, b| a.name <=> b.name}
-        if item.layout != nil
-            @entries = @layout.arrange(self)
-        else
-            @entries = @submenus
-        end
+        end; recurse.call(self)
     end
 
     def as_submenu
-        self.copy
+        return self.copy
     end
 
     def to_s
@@ -644,17 +648,27 @@ class Menu < SubMenu
         "Includes: #{@includes}\n"+
         "Excludes: #{@excludes}\n"+
         "Layout: #{@layout}\n"+
-        "    Submenus: #{@submenus.to_s}\n"+
-        "    Entries: #{@entries.to_s}"
+        "    Submenus: #{@submenus}\n"+
+        "    Entries: #{@entries}"
     end
 end
 
 if __FILE__ == $PROGRAM_NAME
     menu = Menu.new '/etc/xdg/menus/applications.menu'
+    menu.build
     puts menu
-    #puts menu
-    # a = Cond::Or.new()
-    # a.property([:Filename, "ubuntu-software-center.desktop"])
+    # require 'benchmark'
+    # Benchmark.bmbm do |x|
+    #     menu = nil
+    #     x.report("init  ->") do
+    #         menu = Menu.new '/etc/xdg/menus/applications.menu'
+    #     end
+    #     x.report("build ->") do
+    #         menu.build
+    #     end
+    # end
+    # a = Cond::And.new()
+    # a.property([:Category, "Network"])
     # AppCache.each_app do |app|
     #     if a.eval(app)
     #         puts app

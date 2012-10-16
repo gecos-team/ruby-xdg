@@ -55,7 +55,7 @@ class DesktopEntry < IniFile
             @url = @main['URL']
             @app_exec = @main['AppExec']
             @type_exec = @main['TypeExec']
-            @terminal = @main['Terminal', :List]
+            @terminal = @main['Terminal', :Bool]
             @no_display = @main['NoDisplay', :Bool]
             @hidden = @main['Hidden', :Bool]
             @only_show_in = @main['OnlyShowIn']
@@ -67,6 +67,14 @@ class DesktopEntry < IniFile
 
     def eql?(entry)
         @name == entry.name && File.basename(self.info.path) == File.basename(entry.info.path)
+    end
+
+    def empty?()
+        @info != nil 
+    end
+
+    def [](key, value_as = nil)
+        return @main[key, value_as]
     end
 
     def to_s
@@ -84,20 +92,21 @@ module AppCache
     for dir in $CONST['XDG APP DIRS']
         Dir.foreach(dir) do |file|
             if file =~ /.+\.desktop$/
-                APPS[file] = File.join(dir, file)
+                path = File.join(dir, file)
+                APPS[file] = DesktopEntry.new(path)
             end
         end
     end
 
     def AppCache.each(&pass)
-        for name, file in APPS
-            yield name, file
+        for name, app in APPS
+            yield name, app
         end
     end
 
     def AppCache.each_app(&pass)
-        for name, file in APPS
-            yield DesktopEntry.new(file)
+        for name, app in APPS
+            yield app
         end
     end
 end
