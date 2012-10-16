@@ -34,17 +34,33 @@ def env(var, default)
     end
 end
 
-$HOME = ENV['HOME']
-$UID = %x{id -ur}.delete "\n"
+module XDG
+    class CONST
+        HOME = ENV['HOME']
+        UID = %x{id -ur}.delete "\n"
 
-$CONST = Hash['USER HOME' => $HOME, 'USER ID' => $UID]
-$CONST['XDG DATA HOME'] = env(var = 'XDG_DATA_HOME', default = [File.join($HOME, '.local')])
-$CONST['XDG CONFIG HOME'] = env(var = 'XDG_CONFIG_HOME', default = [File.join($HOME, '.config')])
-$CONST['XDG CACHE HOME'] = env(var = 'XDG_CACHE_HOME', default = [File.join($HOME, '.cache')])
-$CONST['XDG DATA DIRS'] = env(var ='XDG_DATA_DIRS', default = ['/usr/local/share', '/usr/share'])
-$CONST['XDG CONFIG DIRS'] = env(var = 'XDG_CONFIG_DIRS', default = ['/etc/xdg'])
+        STD = Hash.new
+        STD['STD ICON SIZES'] = %w(16 24 32 36 48 64 72 96 128 160 192 256 scalable)
+        STD['STD ICON EXTENSIONS'] = ['png', 'svg', 'xpm']
+
+        XDG = Hash['USER HOME' => HOME, 'USER ID' => UID]
+        XDG['XDG DATA HOME'] = env(var = 'XDG_DATA_HOME', default = [File.join(HOME, '.local')])
+        XDG['XDG CONFIG HOME'] = env(var = 'XDG_CONFIG_HOME', default = [File.join(HOME, '.config')])
+        XDG['XDG CACHE HOME'] = env(var = 'XDG_CACHE_HOME', default = [File.join(HOME, '.cache')])
+        XDG['XDG DATA DIRS'] = env(var ='XDG_DATA_DIRS', default = ['/usr/local/share', '/usr/share'])
+        XDG['XDG CONFIG DIRS'] = env(var = 'XDG_CONFIG_DIRS', default = ['/etc/xdg'])
+        def CONST.[](key)
+            XDG[key]
+        end
+
+        def CONST.[]=(key, value)
+            XDG[key] = value
+        end
+    end
+end
 
 if __FILE__ == $PROGRAM_NAME
-    puts $UID
-    puts $CONST
+    puts XDG::CONST::UID
+    puts XDG::CONST::XDG
+    puts XDG::CONST::STD
 end

@@ -25,14 +25,11 @@ require_relative 'core'
 require_relative 'constants'
 
 
-$CONST['XDG ICON DIRS'] = $CONST['XDG DATA DIRS'].map{|d| File.join(d, 'icons')} + [File.join($HOME, '.icons'), '/usr/share/pixmaps']
-$CONST['XDG ICON DIRS'] = $CONST['XDG ICON DIRS'].select {|d| Dir.exists? d}
-$CONST['XDG THEME DIRS'] = $CONST['XDG DATA DIRS'].map{|d| File.join(d, 'themes')} + [File.join($HOME, '.themes')]
-$CONST['XDG THEME DIRS'] = $CONST['XDG ICON DIRS'].select {|d| Dir.exists? d}
+XDG::CONST['XDG ICON DIRS'] = XDG::CONST['XDG DATA DIRS'].map{|d| File.join(d, 'icons')} + [File.join($HOME, '.icons'), '/usr/share/pixmaps']
+XDG::CONST['XDG ICON DIRS'] = XDG::CONST['XDG ICON DIRS'].select {|d| Dir.exists? d}
+XDG::CONST['XDG THEME DIRS'] = XDG::CONST['XDG DATA DIRS'].map{|d| File.join(d, 'themes')} + [File.join($HOME, '.themes')]
+XDG::CONST['XDG THEME DIRS'] = XDG::CONST['XDG ICON DIRS'].select {|d| Dir.exists? d}
 
-$STD = Hash.new
-$STD['STD ICON SIZES'] = %w(16 24 32 36 48 64 72 96 128 160 192 256 scalable)
-$STD['STD ICON EXTENSIONS'] = ['png', 'svg', 'xpm']
 
 class IconDirectory < Section
     attr_reader :size, :context, :type

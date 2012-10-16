@@ -24,8 +24,8 @@
 require_relative 'core'
 require_relative 'constants'
 
-$CONST['XDG APP DIRS'] = $CONST['XDG DATA DIRS'].map {|d| File.join d, '/applications'}.select {|d| Dir.exists? d}
-$CONST['XDG DIR DIRS'] = $CONST['XDG DATA DIRS'].map {|d| File.join d, '/desktop-directories'}.select {|d| Dir.exists? d}
+XDG::CONST['XDG APP DIRS'] = XDG::CONST['XDG DATA DIRS'].map {|d| File.join d, '/applications'}.select {|d| Dir.exists? d}
+XDG::CONST['XDG DIR DIRS'] = XDG::CONST['XDG DATA DIRS'].map {|d| File.join d, '/desktop-directories'}.select {|d| Dir.exists? d}
 
 
 class DesktopEntry < IniFile
@@ -89,13 +89,21 @@ end
 module AppCache
     #this is a global application cache
     APPS = Hash.new
-    for dir in $CONST['XDG APP DIRS']
+    for dir in XDG::CONST['XDG APP DIRS']
         Dir.foreach(dir) do |file|
             if file =~ /.+\.desktop$/
                 path = File.join(dir, file)
                 APPS[file] = DesktopEntry.new(path)
             end
         end
+    end
+
+    def AppCache.[](key)
+        APPS[key]
+    end
+
+    def AppCache.[]=(key, value)
+        APPS[key] = value
     end
 
     def AppCache.each(&pass)

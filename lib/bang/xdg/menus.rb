@@ -25,7 +25,7 @@ require 'libxml'
 require_relative 'applications'
 require_relative 'core'
 
-$CONST['XDG MERGE DIRS'] = $CONST['XDG CONFIG DIRS'].map {|d| File.join d, '/menus/applications-merged'}.select{|d| Dir.exists? d}
+XDG::CONST['XDG MERGE DIRS'] = XDG::CONST['XDG CONFIG DIRS'].map {|d| File.join d, '/menus/applications-merged'}.select{|d| Dir.exists? d}
 
 
 class MenuParser
@@ -43,7 +43,7 @@ class MenuParser
     def parse(f)
         doc = XML::Document.file(f)
         head = doc.root 
-        for dir in $CONST['XDG MERGE DIRS']
+        for dir in XDG::CONST['XDG MERGE DIRS']
             Dir.glob("#{dir}/*.menu") do |item|
                 merge = XML::Document.file(item)
                 merge.root.each_element do |sub|
@@ -65,11 +65,11 @@ class MenuParser
             when 'MergeDir'
                 @merge_directories << node.content
             when 'DefaultAppDirs'
-                @app_directories |= $CONST['XDG APP DIRS']
+                @app_directories |= XDG::CONST['XDG APP DIRS']
             when 'DefaultDirectoryDirs'
-                @dir_directories |= $CONST['XDG DIR DIRS']
+                @dir_directories |= XDG::CONST['XDG DIR DIRS']
             when 'DefaultMergeDirs'
-                @merge_directories |= $CONST['XDG MERGE DIRS']
+                @merge_directories |= XDG::CONST['XDG MERGE DIRS']
             when 'Name'
                 menu.name = node.content
             when 'Directory'
