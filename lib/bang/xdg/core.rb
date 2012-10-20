@@ -32,11 +32,6 @@ class FalseClass
     include Boolean
 end
 
-class NilClass
-    def to_s
-        return 'nil'
-    end
-end
 
 class Dir
     def Dir.walk(dir, &pass)
@@ -62,10 +57,10 @@ end
 
 class String
     def blank?
-        return self.empty? || self == /\s+/ ? true : false 
+        return self.empty? || self =~ /\s+/ ? true : false 
     end
 
-    # adapted from http://jeffgardner.org/2011/08/04/rails-string-to-boolean-method/
+    # from http://jeffgardner.org/2011/08/04/rails-string-to-boolean-method/
     def to_b
         return true if self == true || self =~ /(true|t|yes|y|1)$/i
         return false if self == false || self.blank? || self =~ /(false|f|no|n|0)$/i
@@ -81,7 +76,7 @@ class Section
     attr_reader :head, :fields
     def initialize(name, fields = Hash.new)
         @fields = fields
-        @fields.default " "
+        @fields.default = " "
         @head = name
     end
 
@@ -138,17 +133,17 @@ class IniFile
 
     def get_section(name)
         if name.instance_of?(String)
-            self.each do |section|
+            self.each { |section|
                 if section.head == name
                     return section
                 end
-            end
+            }
         elsif name.instance_of?(Regexp)
-            self.each do |section|
+            self.each { |section|
                 if section.head =~ name
                     return section
                 end
-            end
+            }
         end       
     end
 
@@ -164,9 +159,9 @@ class IniFile
 end
 
 if __FILE__ == $PROGRAM_NAME
-    ini = IniFile.new('/usr/share/applications/firefox.desktop')
-    sect = ini.get_section('Desktop Entry')
-    puts sect['Categories', :List]
+    ini = IniFile.new('/usr/share/icons/HighContrast/index.theme')
+    sect = ini.get_section('Icon Theme')
+    puts sect['Directories', :List]
 end
 
 

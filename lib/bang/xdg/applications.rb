@@ -82,47 +82,49 @@ class DesktopEntry < IniFile
     end
 
     def self.by_name(name)
-        self.new(AppCache::APPS[name])
+        self.new(APPS::CACHE[name])
     end
 end
 
-module AppCache
-    #this is a global application cache
-    APPS = Hash.new
-    for dir in XDG::CONST['XDG APP DIRS']
-        Dir.foreach(dir) do |file|
-            if file =~ /.+\.desktop$/
-                path = File.join(dir, file)
-                APPS[file] = DesktopEntry.new(path)
+module APPS
+    class CACHE
+        #this is a global application directory
+        DIRS = Hash.new
+        for dir in XDG::CONST['XDG APP DIRS']
+            Dir.foreach(dir) { |file|
+                if file =~ /.+\.desktop$/
+                    path = File.join(dir, file)
+                    DIRS[file] = DesktopEntry.new(path)
+                end
+            }
+        end
+
+        def CACHE.[](key)
+            DIRS[key]
+        end
+
+        def CACHE.[]=(key, value)
+            DIRS[key] = value
+        end
+
+        def CACHE.each(&pass)
+            for name, app in DIRS
+                yield name, app
             end
         end
-    end
 
-    def AppCache.[](key)
-        APPS[key]
-    end
-
-    def AppCache.[]=(key, value)
-        APPS[key] = value
-    end
-
-    def AppCache.each(&pass)
-        for name, app in APPS
-            yield name, app
-        end
-    end
-
-    def AppCache.each_app(&pass)
-        for name, app in APPS
-            yield app
+        def CACHE.each_app(&pass)
+            for name, app in DIRS
+                yield app
+            end
         end
     end
 end
 
 if __FILE__ == $PROGRAM_NAME
-    ini = IniFile.new('/usr/share/applications/ubuntu-software-center.desktop')
-    ini.each do |section|
+    ini = DesktopEntry.new('/usr/share/applications/ubuntu-software-center.desktop')
+    ini.each { |section|
         puts section.head
         puts section
-    end
+    }
 end

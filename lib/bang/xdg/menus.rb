@@ -42,15 +42,7 @@ class MenuParser
 
     def parse(f)
         doc = XML::Document.file(f)
-        head = doc.root 
-        for dir in XDG::CONST['XDG MERGE DIRS']
-            Dir.glob("#{dir}/*.menu") do |item|
-                merge = XML::Document.file(item)
-                merge.root.each_element do |sub|
-                    head << doc.import(sub) if sub.name == 'Menu'
-                end
-            end
-        end
+        head = doc.root
         read_elements(@menu, head)
     end
 
@@ -170,7 +162,7 @@ class MenuParser
                 node.each_element do |e|
                     case e.name
                     when 'Filename'
-                        app = AppCache::APPS[e.content]
+                        app = APPS::CACHE[e.content]
                         if app != nil
                             layout.add(app)
                         end
@@ -451,14 +443,6 @@ module Conditions
             end
         end
     end
-
-    def assign_defaults_if
-        @show_empty = false if @show_empty == nil || @show_empty == ""
-        @inline = false if @inline == nil || @inline == ""
-        @inline_limit = 4 if @inline_limit == nil || @inline_limit == ""
-        @inline_header = false if @inline_header == nil || @inline_header == ""
-        @inline_alias = false if @inline_alias == nil || @inline_alias == ""
-    end
 end
 
 class MenuName
@@ -501,7 +485,17 @@ class Layout
                         match = item if item.name == entry.name
                     end
                 end
-                new_menu << match 
+                if match != nil
+                    if entry.show_empty == true && match.submenus.empty?
+                        new_menu << match
+                    elsif entry.inline == true && entry.inline_limit <= match.submenus.length
+                        new_menu |= match.submenus
+                    elsif entry.inline == false
+                        new_menu << match
+                    else
+                        new_menu << match
+                    end
+                end
             elsif entry.instance_of?(DesktopEntry)
                 new_menu.delete(entry) if new_menu.include?(entry)
                 new_menu << entry
@@ -509,7 +503,7 @@ class Layout
                 new_menu << entry
             end
         end
-    return new_menu.empty? ? submenus : new_menu
+        return new_menu.empty? ? submenus : new_menu
     end
 
     def each(&pass)
@@ -625,17 +619,17 @@ class Menu < SubMenu
 
     def build
         recurse = Proc.new do |menu|
-            menu.entries = menu.layout.arrange(menu.submenus)
-            menu.entries.each do |entry|
+            menu.submenus.each do |entry|
                 if entry.is_a?(SubMenu)
-                    AppCache.each_app do |app|
+                    APPS::CACHE.each_app do |app|
                         if entry.included?(app) && !entry.excluded?(app)
-                            entry.entries << app
+                            entry.submenus << app
                         end
                     end
                     recurse.call(entry) if !entry.submenus.empty?
                 end
             end
+            menu.entries = menu.layout.arrange(menu.submenus)
         end; recurse.call(self)
     end
 
@@ -669,7 +663,7 @@ if __FILE__ == $PROGRAM_NAME
     # end
     # a = Cond::And.new()
     # a.property([:Category, "Network"])
-    # AppCache.each_app do |app|
+    # APPS::CASHE.each_app do |app|
     #     if a.eval(app)
     #         puts app
     #         puts app.categories

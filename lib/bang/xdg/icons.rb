@@ -25,9 +25,9 @@ require_relative 'core'
 require_relative 'constants'
 
 
-XDG::CONST['XDG ICON DIRS'] = XDG::CONST['XDG DATA DIRS'].map{|d| File.join(d, 'icons')} + [File.join($HOME, '.icons'), '/usr/share/pixmaps']
+XDG::CONST['XDG ICON DIRS'] = XDG::CONST['XDG DATA DIRS'].map{|d| File.join(d, 'icons')} + [File.join(XDG::CONST::HOME, '.icons'), '/usr/share/pixmaps']
 XDG::CONST['XDG ICON DIRS'] = XDG::CONST['XDG ICON DIRS'].select {|d| Dir.exists? d}
-XDG::CONST['XDG THEME DIRS'] = XDG::CONST['XDG DATA DIRS'].map{|d| File.join(d, 'themes')} + [File.join($HOME, '.themes')]
+XDG::CONST['XDG THEME DIRS'] = XDG::CONST['XDG DATA DIRS'].map{|d| File.join(d, 'themes')} + [File.join(XDG::CONST::HOME, '.themes')]
 XDG::CONST['XDG THEME DIRS'] = XDG::CONST['XDG ICON DIRS'].select {|d| Dir.exists? d}
 
 
@@ -36,7 +36,7 @@ class IconDirectory < Section
     attr_reader :min_size, :max_size
 
     def initialize(section)
-        super section.head, section
+        super(section.head, section.fields)
         @size = section['Size']
         @context = section['Context']
         @type = section['Type']
@@ -50,7 +50,7 @@ class IconTheme
     attr_reader :name, :comment, :inherits, :example
     attr_reader :directories_s, :inherits_s
 
-    def initialize(path)
+    def initialize(path = nil)
         super()
         self.parse(path)
     end
@@ -64,13 +64,13 @@ class IconTheme
             @inherits_s = @main['Inherits', :List]
             @directories_s = @main['Directories', :List]
             @example = @main['Example']
-            @directories = @ini.select{|d| d.head != 'Icon Theme'}.map{|d| IconDirectory.new d}
-            @inherits = inherits_s.map{|i| IconTheme.by_name i.strip} if inherits_s != []
+            @directories = @ini.select{|d| d.head != 'Icon Theme'}.map{|d| IconDirectory.new(d)}
+            @inherits = inherits_s.map{|i| IconTheme.by_name i.strip} if !inherits_s.empty?
         end
     end
 
     def find_icon(name, size, exts = ['png', 'svg', 'xpm'])
-        path = File.dirname(self.info.path)
+        path = File.dirname(@ini.info.path)
         dirs = self.directories_s.select{|dir| dir.match %r|#{size}|}
         if name =~ %r|.*\..+|
             name, exts = name.split '.'
@@ -78,17 +78,20 @@ class IconTheme
             exts = exts.join '|'
         end
         for dir in dirs
-            Dir.foreach(path + dir) do |file|
-                if file =~ %r|#{name}\.#{exts}|
-                    return path + dir + file
-                end
+            files = Dir.foreach(File.join(path, dir)).select { |file|
+                file =~ %r|#{name}\.(#{exts})|
+            }.map{|file| File.join(path, dir, file)}
+            if files.empty?
+                next
+            else
+                return files
             end
         end
         return nil
     end
 
     def self.by_name(name)
-        self.new(ICON_THEMES[name])
+        self.new(FileCache.get name)
     end
 
     def to_s
@@ -101,19 +104,21 @@ end
 
 module IconResolver
 
-    def search_in_pixmaps(name, exts = ['png', 'svg', 'xpm'])
-        path = '/usr/share/pixmaps/'
-        exts_p = exts.join '|'
-        Dir.glob(%r|#{path}\.#{exts_p}|) do |file|
-            if file =~ name; return file; end
+    def self.search_in_pixmaps(name, exts = ['png', 'svg', 'xpm'])
+        if name =~ %r|.*\..+|
+            name, exts = name.split '.'
+        else
+            exts = exts.join '|'
         end
+        files = Dir.foreach('/usr/share/pixmaps/').select {|file| file =~ /#{name}\.(#{exts})/}
+        return files.map {|f| '/usr/share/pixmaps/' + f }
     end
 
-    def search_in_theme(theme, name, size, exts = ['png', 'svg', 'xpm'])
-        item = theme.find_icon name, size, exts
+    def self.search_in_theme(theme, name, size, exts = ['png', 'svg', 'xpm'])
+        item = theme.find_icon(name, size, exts)
         if item == nil
             for inherit in theme.inherits
-                item = theme.find_icon name, size, exts
+                item = theme.find_icon(name, size, exts)
                 if item == nil 
                     continue
                 else
@@ -128,35 +133,75 @@ module IconResolver
 end
 
 
-module ICON_THEMES
-    DIRS = Hash.new
-    THEMES = Hash.new
-    for dir in $CONST['XDG ICON DIRS']
+module FileCache
+    CACHE = Hash.new
+    for dir in XDG::CONST['XDG ICON DIRS']
         if Dir.exists? dir
-            Dir.foreach(dir) do |file|
+            Dir.foreach(dir) { |file|
                 index = File.join(dir, file, 'index.theme')
                 if File.exists?(index) && file != 'default'
-                    DIRS[file] = index
-                    ini = IniFile.new(index)
-                    sect = ini.get_section(/Icon Theme|X-GNOME-Metatheme/)
-                    THEMES[sect['Name']] = index
+                    CACHE[file] = index
                 end
-            end
+            }
         end
     end
-    def ICON_THEMES.[](name)
-        ret = THEMES[name]
-        if ret == nil 
-            return DIRS[name]
+    def self.get(name)
+        var = CACHE[name]
+        if var == nil
+            CACHE.each { |key, value|
+                if key == /#{name}/ix
+                    return CACHE[key]
+                end
+            }
         else
-            return ret
+            return var
         end
     end
 end
 
+
+module THEMES
+    class ICONS
+        DIRS = Hash.new; NAMES = Hash.new
+        for dir in XDG::CONST['XDG ICON DIRS']
+            if Dir.exists? dir
+                Dir.foreach(dir) { |file|
+                    index = File.join(dir, file, 'index.theme')
+                    if File.exists?(index) && file != 'default'
+                        DIRS[file] = IconTheme.new(index)
+                    end
+                }
+            end
+        end
+        DIRS.each_value { |val|
+            NAMES[val.name] = val 
+        }
+
+        def ICONS.[](name)
+            ret = NAMES[name]
+            if ret == nil 
+                return DIRS[name]
+            else
+                return ret
+            end
+        end
+    end
+end
+
+
+
 if __FILE__ == $PROGRAM_NAME
-    puts ICON_THEMES['gnome']
-    theme = IconTheme.new('/usr/share/icons/HighContrast/index.theme')
-    puts 'Name: ' + theme.name
-    puts theme.inherits
+    p IconResolver.search_in_pixmaps('firefox')
+    p THEMES::ICONS['Faenza'].find_icon('firefox', 'scalable', ['svg'])
+    # puts 'Name: ' + theme.name
+    # puts theme.inherits
+    # require 'benchmark'
+    # Benchmark.bmbm do |x|
+    #     x.report(:init) {
+    #         theme = IconTheme.new('/usr/share/icons/HighContrast/index.theme')
+    #     }
+    #     x.report(:init) {
+    #         THEMES::ICONS['gnome']
+    #     }
+    # end
 end
