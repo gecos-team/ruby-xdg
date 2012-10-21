@@ -20,16 +20,16 @@
 # ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+require './core'
+require './constants'
 
-require_relative 'core'
-require_relative 'constants'
 
 XDG::CONST['XDG APP DIRS'] = XDG::CONST['XDG DATA DIRS'].map {|d| File.join d, '/applications'}.select {|d| Dir.exists? d}
 XDG::CONST['XDG DIR DIRS'] = XDG::CONST['XDG DATA DIRS'].map {|d| File.join d, '/desktop-directories'}.select {|d| Dir.exists? d}
 
 
 class DesktopEntry < IniFile
-    attr_reader :data
+    attr_reader :main
     attr_reader :name, :generic_name, :encoding, :type, :icon, :comment
     attr_reader :mime_type, :categories, :url
     attr_reader :app_exec, :type_exec, :terminal
@@ -43,7 +43,7 @@ class DesktopEntry < IniFile
     def parse(path)
         super(path)
         if self.info != nil
-            @main = self.get_section('Desktop Entry')
+            @main = self.section('Desktop Entry')
             @name = @main['Name']
             @generic_name = @main['Generic Name']
             @encoding = @main['Encoding']
@@ -66,7 +66,7 @@ class DesktopEntry < IniFile
     end
 
     def eql?(entry)
-        @name == entry.name && File.basename(self.info.path) == File.basename(entry.info.path)
+        @name == entry.name && self.info.name == entry.info.name
     end
 
     def empty?()
@@ -78,7 +78,7 @@ class DesktopEntry < IniFile
     end
 
     def to_s
-        return "\"#{@name}\" #{File.basename(self.info.path)}"
+        return "\"#{@name}\" #{self.info.name}"
     end
 
     def self.by_name(name)
@@ -91,12 +91,12 @@ module APPS
         #this is a global application directory
         DIRS = Hash.new
         for dir in XDG::CONST['XDG APP DIRS']
-            Dir.foreach(dir) { |file|
+            Dir.foreach(dir) do |file|
                 if file =~ /.+\.desktop$/
                     path = File.join(dir, file)
                     DIRS[file] = DesktopEntry.new(path)
                 end
-            }
+            end
         end
 
         def CACHE.[](key)
@@ -123,8 +123,8 @@ end
 
 if __FILE__ == $PROGRAM_NAME
     ini = DesktopEntry.new('/usr/share/applications/ubuntu-software-center.desktop')
-    ini.each { |section|
+    ini.each do |section|
         puts section.head
         puts section
-    }
+    end
 end

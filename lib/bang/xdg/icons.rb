@@ -21,8 +21,8 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-require_relative 'core'
-require_relative 'constants'
+require './core'
+require './constants'
 
 
 XDG::CONST['XDG ICON DIRS'] = XDG::CONST['XDG DATA DIRS'].map{|d| File.join(d, 'icons')} + [File.join(XDG::CONST::HOME, '.icons'), '/usr/share/pixmaps']
@@ -58,7 +58,7 @@ class IconTheme
     def parse(path)
         @ini = IniFile.new(path)
         if @ini.info != nil
-            @main = @ini.get_section('Icon Theme')
+            @main = @ini.section('Icon Theme')
             @name = @main['Name']
             @comment = @main['Comment']
             @inherits_s = @main['Inherits', :List]

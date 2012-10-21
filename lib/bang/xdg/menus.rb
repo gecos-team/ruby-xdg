@@ -20,10 +20,9 @@
 # ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
+require './applications'
+require './core'
 require 'libxml'
-require_relative 'applications'
-require_relative 'core'
 
 XDG::CONST['XDG MERGE DIRS'] = XDG::CONST['XDG CONFIG DIRS'].map {|d| File.join d, '/menus/applications-merged'}.select{|d| Dir.exists? d}
 
@@ -353,7 +352,7 @@ module Cond
         end
 
         def empty?
-            node == nil ? true : false
+            @node == nil ? true : false
         end
 
         def to_s 

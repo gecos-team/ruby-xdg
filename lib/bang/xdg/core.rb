@@ -32,32 +32,49 @@ class FalseClass
     include Boolean
 end
 
+def all_known_drives
+    lines = %x{mount -v}.split "\n"
+    return lines.select{ |p| 
+        p.start_with?("/dev/") && !p.include?("/boot")
+        }.map {|p| p.slice(0, p.index("t")).split(/\son\s/)[1].strip}
+end
 
-class Dir
-    def Dir.walk(dir, &pass)
-        root = dir
-        dirs, files = []
-        Dir.each(dir) do |item|
-            if File.directory? item
-                dirs << item
-            else
-                files << item
-            end
-        end
-        yield root, dirs, files
-        dirs.each do |dir|
-            Dir.walk(dir, block)
-        end
+class File
+    def name(minus = '')
+        File.basename self.path, minus
     end
 
-    def walk &block
-        Dir.walk(self.path, block)
+    def dir
+        File.dirname self.path
+    end
+
+    def ext
+        File.basename(self.path).split('.')[-1]
+    end
+    
+end
+
+class Dir
+    def Dir.drivefolder(path)
+        drives = all_known_drives - ['/']
+        drives.each do |drive|
+            if path.include?(drive)
+                return drive
+            else
+                return '/' if File.exists?(path)
+            end
+        end
+        return '/' if File.exists?(path)
+    end
+
+    def drivefolder
+        Dir.drivefolder(self.path)
     end
 end
 
 class String
     def blank?
-        return self.empty? || self =~ /\s+/ ? true : false 
+        return self.empty? || self !~ /\S+/ ? true : false 
     end
 
     # from http://jeffgardner.org/2011/08/04/rails-string-to-boolean-method/
@@ -107,7 +124,7 @@ end
 
 class IniFile
     include Enumerable
-    attr_reader :info, :data
+    attr_reader :info, :data, :text
     def initialize(path = nil)
         self.parse(path)
     end
@@ -116,6 +133,7 @@ class IniFile
         if path != nil
             @info = File.new(path)
             @text = IO.read(@info)
+            return 0 if @text.blank?
             @data = Array.new
             sect = nil
             for line in @text.delete('#.*$').split(/\n/)
@@ -131,23 +149,25 @@ class IniFile
         end
     end
 
-    def get_section(name)
+    def section(name)
+        return if @text.blank?
         if name.instance_of?(String)
-            self.each { |section|
+            self.each do |section|
                 if section.head == name
                     return section
                 end
-            }
+            end
         elsif name.instance_of?(Regexp)
-            self.each { |section|
+            self.each do |section|
                 if section.head =~ name
                     return section
                 end
-            }
+            end
         end       
     end
 
     def each(&pass)
+        return if @text.blank?
         for section in @data 
             yield section
         end
@@ -159,9 +179,11 @@ class IniFile
 end
 
 if __FILE__ == $PROGRAM_NAME
-    ini = IniFile.new('/usr/share/icons/HighContrast/index.theme')
-    sect = ini.get_section('Icon Theme')
-    puts sect['Directories', :List]
+    # ini = IniFile.new('/usr/share/icons/HighContrast/index.theme')
+    # sect = ini.section('Icon Theme')
+    # puts sect['Directories', :List]
+    p Dir.drivefolder('/home/christopher/Documents')
+    p Dir.drivefolder('/media/BUFFALO HD/Apps')
 end
 
 
