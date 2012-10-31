@@ -20,59 +20,15 @@
 # ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-require "Qt4"
-require "forwardable"
-require "active_support/core_ext/time/zones"
 
-class Bang < Qt::Application
-    def initialize(args = ['-stylesheet'])
-        args << '-stylesheet' if !args.include?('-stylesheet')
-        super(args)
-    end
-
-    def css=(style)
-        self.set_style_sheet(style)
-    end
-
-    def css
-        self.style_sheet
-    end
-end
-
-class TestWindow < Qt::MainWindow
-    extend Forwardable
-    def_delegator :@menu_bar, :add_menu, :add_menu
-    def initialize
-        super()
-        @menu_bar = Qt::MenuBar.new
-        self.set_menu_bar(@menu_bar)
-    end
-end
-
-class WidgetMenu < Qt::Menu 
-    def add_widget(widget)
-        action = Qt::WidgetAction.new(self)
-        action.set_default_widget(widget)
-        self.add_action(action)
-    end
-end
-
-module FontHandle
-    def set_font_size(pt)
-        font = self.font
-        font.set_point_size_f(pt)
-        self.set_font(font)
-    end
-end
-
-class Time
-    def self.tz(time_zone)
-        Time.zone = time_zone
-        return Time.zone.now
-    end
-end
-
-
-if __FILE__ == $PROGRAM_NAME
-
+module GUI
+	class CONST
+		MAP = Hash.new
+		def CONST.[](key)
+			MAP[key]
+		end
+		def CONST.[]=(key, value)
+			MAP[key] = value
+		end
+	end
 end

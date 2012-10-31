@@ -20,38 +20,50 @@
 # ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-require "Qt4"
+require 'Qt4'
+require './constants'
+require './core'
+
+
+GUI::CONST['TIMEZONE'] = ENV['TZ']
 
 class ClockLabel < Qt::Label
-    attr_accessor :timer, :date_format
-    slots :start
-    def initialize(date_format = '%Y-%d-%mT%H:%M:%S')
+    include FontHandle
+    attr_accessor :timer, :date_format, :time_zone
+    def initialize(date_format = '%a, %d %b %Y %H:%M:%S', time_zone = GUI::CONST['TIMEZONE'])
         super(Time.now.strftime date_format)
         @date_format = date_format
+        @time_zone = time_zone
     end
 
     def start
         @timer = Qt::Timer.new(self)
         @timer.connect(SIGNAL :timeout) do
-            self.set_text(Time.now.strftime @date_format)
+            self.set_text(Time.tz(@time_zone).strftime(@date_format))
             self.update
-        end        
+        end
         @timer.start(1000)
     end
 end
 
-class Calendar < Qt::Menu
-    attr_accessor :timer, :date_format    
-    signals :start
-    def initalize(date_format = '%Y-%d-%mT%H:%M:%S')
+class Calendar < WidgetMenu
+    attr_accessor :timer, :date_format
+    def initialize(date_format = '%Z: %a, %d %b %Y %H:%M')
         super(Time.now.strftime date_format)
-        self.add_widget(Qt::Calendar.new)
-        self.add_widget(ClockLabel.new.start)
-        self.add_widget(ClockLabel.new.start)
+        @date_format = date_format
+        self.add_clock("%a, %B %e, %Y %l:%M:%S %p %Z")
+        self.add_widget(Qt::CalendarWidget.new)
+        self.add_separator
+        self.add_clock('  ' + date_format, GUI::CONST['TIMEZONE'],Qt::AlignLeft)
+        self.add_clock('  ' + date_format, 'UTC', Qt::AlignLeft)
     end
 
-    def add_widget(widget)
-        self.add_action(Qt::WidgetAction.new widget)
+    def add_clock(date_format, time_zone = GUI::CONST['TIMEZONE'] ,align = Qt::AlignHCenter)
+        clock = ClockLabel.new(date_format, time_zone)
+        clock.set_alignment(align)
+        clock.set_font_size(10)
+        self.add_widget(clock)
+        clock.start
     end
 
     def start
@@ -59,15 +71,17 @@ class Calendar < Qt::Menu
         @timer.connect(SIGNAL :timeout) do
             self.set_title(Time.now.strftime @date_format)
             self.update
-        end        
+        end
         @timer.start(1000)
     end
 end
 
 if __FILE__ == $PROGRAM_NAME
-    app = Qt::Application.new([])
-    clock = ClockLabel.new()
-    clock.start
-    clock.show
+    app = Bang.new
+    window = TestWindow.new
+    calendar = Calendar.new
+    window.add_menu(calendar)
+    calendar.start
+    window.show
     app.exec()
 end
