@@ -109,7 +109,8 @@ class TrashCan
     def restore(file_name)
         file = File.join(@files, file_name)
         info = TrashInfo.new File.join(@info, "#{file_name}.trashinfo")
-        FileUtils.move(file, info.original_path)
+        original_path = info.original_path.blank? ? XDG::CONST::HOME + '/Desktop' : info.original_path
+        FileUtils.move(file, original_path)
         begin
             FileUtils.remove_entry(info.info.path, force = true)
         rescue

@@ -46,6 +46,7 @@ class IconDirectory < Section
 end
 
 class IconTheme
+    include IconResolver
     attr_reader :main, :directories, :ini
     attr_reader :name, :comment, :inherits, :example
     attr_reader :directories_s, :inherits_s
@@ -98,12 +99,15 @@ class IconTheme
         return "#{@name}: #{File.dirname @ini.info.path}"
     end
 
+    def search_in_theme(name, size, exts = ['png', 'svg', 'xpm'])
+        IconTheme.search_in_theme(self, name, size, exts)
+    end
+
 end
 
 
 
 module IconResolver
-
     def self.search_in_pixmaps(name, exts = ['png', 'svg', 'xpm'])
         if name =~ %r|.*\..+|
             name, exts = name.split '.'
@@ -113,7 +117,6 @@ module IconResolver
         files = Dir.foreach('/usr/share/pixmaps/').select {|file| file =~ /#{name}\.(#{exts})/}
         return files.map {|f| '/usr/share/pixmaps/' + f }
     end
-
     def self.search_in_theme(theme, name, size, exts = ['png', 'svg', 'xpm'])
         item = theme.find_icon(name, size, exts)
         if item == nil
