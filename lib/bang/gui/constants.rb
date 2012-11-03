@@ -22,13 +22,13 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 module GUI
-	class CONST
-		MAP = Hash.new
-		def CONST.[](key)
-			MAP[key]
-		end
-		def CONST.[]=(key, value)
-			MAP[key] = value
-		end
-	end
+    class CONST
+        MAP = Hash['TIMEZONE' => ENV['TZ']]
+        def CONST.[](key)
+            MAP[key]
+        end
+        def CONST.[]=(key, value)
+            MAP[key] = value
+        end
+    end
 end

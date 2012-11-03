@@ -23,46 +23,60 @@
 require "Qt4"
 require "forwardable"
 require "active_support/core_ext/time/zones"
+require "../xdg/core"
 
-class Bang < Qt::Application
-    def initialize(args = ['-stylesheet'])
-        args << '-stylesheet' if !args.include?('-stylesheet')
-        super(args)
+module Bang
+    class Session < Qt::Application
+        def initialize(args = ['-stylesheet'])
+            args << '-stylesheet' if !args.include?('-stylesheet')
+            super(args)
+        end
+
+        def css=(style)
+            self.set_style_sheet(style)
+        end
+
+        def css
+            self.style_sheet
+        end
     end
 
-    def css=(style)
-        self.set_style_sheet(style)
+    class TestWindow < Qt::MainWindow
+        def_delegator :@menu_bar, :add_menu, :add_menu
+        def initialize
+            super()
+            @menu_bar = Qt::MenuBar.new
+            self.set_menu_bar(@menu_bar)
+        end
     end
 
-    def css
-        self.style_sheet
-    end
-end
+    module BangWidget
+        def css=(style)
+            self.set_style_sheet(style)
+        end
 
-class TestWindow < Qt::MainWindow
-    extend Forwardable
-    def_delegator :@menu_bar, :add_menu, :add_menu
-    def initialize
-        super()
-        @menu_bar = Qt::MenuBar.new
-        self.set_menu_bar(@menu_bar)
+        def css
+            self.style_sheet
+        end
     end
-end
 
-class WidgetMenu < Qt::Menu 
-    def add_widget(widget)
-        action = Qt::WidgetAction.new(self)
-        action.set_default_widget(widget)
-        self.add_action(action)
+    class WidgetMenu < Qt::Menu 
+        include BangWidget
+        def add_widget(widget)
+            action = Qt::WidgetAction.new(self)
+            action.set_default_widget(widget)
+            self.add_action(action)
+        end
     end
-end
 
-module FontHandle
-    def set_font_size(pt)
-        font = self.font
-        font.set_point_size_f(pt)
-        self.set_font(font)
+    module FontHandle
+        def set_font_size(pt)
+            font = self.font
+            font.set_point_size_f(pt)
+            self.set_font(font)
+        end
     end
+
 end
 
 class Time
@@ -71,6 +85,38 @@ class Time
         return Time.zone.now
     end
 end
+
+class TimeSpan
+    attr_reader :hours, :minutes, :seconds
+    def initialize(seconds)
+        @hours = (seconds/3600).to_i
+        @minutes = (seconds/60 - @hours*60).to_i
+        @seconds = (seconds - (@minutes * 60 + @hours * 3600)).to_i
+    end
+
+    def hrs_s
+        @hours < 10 ? '0' + @hours.to_s : @hours.to_s
+    end
+
+    def mins_s
+        @minutes < 10 ? '0' + @minutes.to_s : @minutes.to_s
+    end
+
+    def secs_s
+        @seconds < 10 ? '0' + @seconds.to_s : @seconds.to_s
+    end
+
+    def to_s
+        if @hours == 0
+            "#{@minutes < 10 ? '0' + @minutes.to_s : @minutes.to_s}:#{@seconds < 10 ? '0' + @seconds.to_s : @seconds.to_s}"
+        elsif @hours == 0 && @minutes == 0
+            "#{@seconds}"
+        else
+            "#{@hours < 10 ? '0' + @hours.to_s : @hours.to_s}:#{@minutes < 10 ? '0' + @minutes.to_s : @minutes.to_s}:#{@seconds < 10 ? '0' + @seconds.to_s : @seconds.to_s}"
+        end
+    end
+end
+
 
 
 if __FILE__ == $PROGRAM_NAME
