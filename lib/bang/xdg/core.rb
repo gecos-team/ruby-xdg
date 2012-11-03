@@ -20,6 +20,8 @@
 # ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+require "forwardable"
+
 
 module Boolean
 end
@@ -32,12 +34,25 @@ class FalseClass
     include Boolean
 end
 
+module ObjectMerge
+    def merge_with(mod)
+        include mod
+        extend mod
+    end
+end
+
+class Object
+    extend ObjectMerge
+    extend Forwardable
+end
+
 def all_known_drives
     lines = %x{mount -v}.split "\n"
     return lines.select{ |p| 
         p.start_with?("/dev/") && !p.include?("/boot")
         }.map {|p| p.slice(0, p.index("t")).split(/\son\s/)[1].strip}
 end
+
 
 class File
     def name(minus = '')
