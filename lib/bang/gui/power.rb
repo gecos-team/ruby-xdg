@@ -59,9 +59,11 @@ module Bang
 
     class BatteryLabel < Qt::Label
         include Monitored
+        def_delegator :@timer , :start, :start
         def initialize
             super('Power')
-            @timer = Qt::Timer.new(self)
+            @timer = Qt::Timer.new(self); 
+            @timer.set_interval(1000)
             @timer.connect(SIGNAL :timeout) do
                 case @@dbus.state
                 when :CHARGING
@@ -84,9 +86,6 @@ module Bang
                     self.set_text("Something is Wrong!")
                 end
             end
-        end
-        def start
-            @timer.start(1000)
         end
     end
 
