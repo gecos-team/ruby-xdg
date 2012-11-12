@@ -22,8 +22,9 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 require "Qt4"
 require "active_support/core_ext/time/zones"
-require "dbus"
 require "../xdg/core"
+require "../xdg/icons"
+
 
 module Bang
     class Session < Qt::Application
@@ -66,6 +67,21 @@ module Bang
             action = Qt::WidgetAction.new(self)
             action.set_default_widget(widget)
             self.add_action(action)
+            return widget
+        end
+
+        def add_widgets(*widgets)
+            widgets.each do |widget|
+                self.add_widget(widget)
+            end
+            return widgets
+        end
+
+        def add_actions(*actions)
+            actions.each do |action|
+                self.add_action(action)
+            end
+            return actions
         end
     end
 
@@ -74,6 +90,15 @@ module Bang
             font = self.font
             font.set_point_size_f(pt)
             self.set_font(font)
+        end
+    end
+
+    class ProgressMeter < Qt::ProgressBar
+        include BangWidget
+        def initialize
+            super()
+            set_text_visible(true)
+            set_range(0, 100)
         end
     end
 
@@ -86,39 +111,32 @@ class Time
     end
 end
 
+
 class TimeSpan
     attr_reader :hours, :minutes, :seconds
+    attr_reader :hrs_s, :mins_s, :secs_s
     def initialize(seconds)
         @hours = (seconds/3600).to_i
         @minutes = (seconds/60 - @hours*60).to_i
         @seconds = (seconds - (@minutes * 60 + @hours * 3600)).to_i
-    end
-
-    def hrs_s
-        @hours < 10 ? '0' + @hours.to_s : @hours.to_s
-    end
-
-    def mins_s
-        @minutes < 10 ? '0' + @minutes.to_s : @minutes.to_s
-    end
-
-    def secs_s
-        @seconds < 10 ? '0' + @seconds.to_s : @seconds.to_s
+        @hrs_s = @hours < 10 ? '0' + @hours.to_s : @hours.to_s
+        @mins_s = @minutes < 10 ? '0' + @minutes.to_s : @minutes.to_s
+        @secs_s = @seconds < 10 ? '0' + @seconds.to_s : @seconds.to_s
     end
 
     def to_s
         if @hours == 0
             "#{@minutes < 10 ? '0' + @minutes.to_s : @minutes.to_s}:#{@seconds < 10 ? '0' + @seconds.to_s : @seconds.to_s}"
         elsif @hours == 0 && @minutes == 0
-            "#{@seconds}"
+            "#{@seconds < 10 ? '0' + @seconds.to_s : @seconds.to_s}"
         else
             "#{@hours < 10 ? '0' + @hours.to_s : @hours.to_s}:#{@minutes < 10 ? '0' + @minutes.to_s : @minutes.to_s}:#{@seconds < 10 ? '0' + @seconds.to_s : @seconds.to_s}"
         end
     end
+
 end
 
 
 
 if __FILE__ == $PROGRAM_NAME
-
 end

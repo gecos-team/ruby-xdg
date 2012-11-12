@@ -20,8 +20,8 @@
 # ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-require './constants'
-require './core'
+require '../gui/constants'
+require '../gui/core'
 
 
 module Bang
@@ -49,7 +49,6 @@ module Bang
         def initialize(date_format = '%Z: %a, %d %b %Y %H:%M')
             super(Time.now.strftime date_format)
             @date_format = date_format
-            self.add_clock("%B %e, %Y")
             self.add_widget(Qt::CalendarWidget.new)
             self.add_separator
             self.add_clock('  ' + date_format, GUI::CONST['TIMEZONE'], Qt::AlignLeft)

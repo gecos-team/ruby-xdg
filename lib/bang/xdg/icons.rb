@@ -20,15 +20,30 @@
 # ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
-require './core'
-require './constants'
+require '../xdg/core'
+require '../xdg/constants'
 
 
 XDG::CONST['XDG ICON DIRS'] = XDG::CONST['XDG DATA DIRS'].map{|d| File.join(d, 'icons')} + [File.join(XDG::CONST::HOME, '.icons'), '/usr/share/pixmaps']
-XDG::CONST['XDG ICON DIRS'] = XDG::CONST['XDG ICON DIRS'].select {|d| Dir.exists? d}
+XDG::CONST['XDG ICON DIRS'] = XDG::CONST['XDG ICON DIRS'].select{|d| Dir.exists? d}
 XDG::CONST['XDG THEME DIRS'] = XDG::CONST['XDG DATA DIRS'].map{|d| File.join(d, 'themes')} + [File.join(XDG::CONST::HOME, '.themes')]
-XDG::CONST['XDG THEME DIRS'] = XDG::CONST['XDG ICON DIRS'].select {|d| Dir.exists? d}
+XDG::CONST['XDG THEME DIRS'] = XDG::CONST['XDG ICON DIRS'].select{|d| Dir.exists? d}
+
+
+module IconResolver
+    def self.search_in_pixmaps(name, exts = ['png', 'svg', 'xpm'])
+        if name =~ %r|.*\..+|
+            name, exts = name.split '.'
+        else
+            exts = exts.join '|'
+        end
+        files = Dir.foreach('/usr/share/pixmaps/').select {|file| file =~ /#{name}\.(#{exts})/}
+        return files.map {|f| '/usr/share/pixmaps/' + f }
+    end
+    def self.search_in_theme(theme, name, size, exts = ['png', 'svg', 'xpm'])
+        item = theme.find_icon(name, size, exts)
+    end
+end
 
 
 class IconDirectory < Section
@@ -88,6 +103,50 @@ class IconTheme
                 return files
             end
         end
+        exts = exts.split '|'
+        if self.inherits != nil
+            for inherit in self.inherits
+                item = inherit.find_icon(name, size, exts)
+                if item == nil 
+                    next
+                else
+                    return item
+                end
+            end
+        end
+        return nil
+    end
+
+    def find_icon_in_folder(folder, name, size, exts = ['png', 'svg', 'xpm'])
+        path = File.dirname(@ini.info.path)
+        dirs = self.directories_s.select{ |dir| dir.match(%r|#{size}|) && dir.include?(folder)}
+        if name =~ %r|.*\..+|
+            name, exts = name.split '.'
+        else
+            exts = exts.join '|'
+        end
+        for dir in dirs
+            files = Dir.foreach(File.join(path, dir)).select{|file|
+                file =~ %r|#{name}\.(#{exts})|
+            }.map{|file| File.join(path, dir, file)}
+            if files.empty?
+                next
+            else
+                return files
+            end
+        end
+        #else
+        exts = exts.split '|'
+        if self.inherits != nil
+            for inherit in self.inherits
+                item = inherit.find_icon_in_folder(folder, name, size, exts)
+                if item == nil 
+                    next
+                else
+                    return item
+                end
+            end
+        end
         return nil
     end
 
@@ -101,36 +160,6 @@ class IconTheme
 
     def search_in_theme(name, size, exts = ['png', 'svg', 'xpm'])
         IconTheme.search_in_theme(self, name, size, exts)
-    end
-
-end
-
-
-
-module IconResolver
-    def self.search_in_pixmaps(name, exts = ['png', 'svg', 'xpm'])
-        if name =~ %r|.*\..+|
-            name, exts = name.split '.'
-        else
-            exts = exts.join '|'
-        end
-        files = Dir.foreach('/usr/share/pixmaps/').select {|file| file =~ /#{name}\.(#{exts})/}
-        return files.map {|f| '/usr/share/pixmaps/' + f }
-    end
-    def self.search_in_theme(theme, name, size, exts = ['png', 'svg', 'xpm'])
-        item = theme.find_icon(name, size, exts)
-        if item == nil
-            for inherit in theme.inherits
-                item = theme.find_icon(name, size, exts)
-                if item == nil 
-                    continue
-                else
-                    return item
-                end
-            end
-        else
-            return item
-        end
     end
 
 end
@@ -163,7 +192,7 @@ module FileCache
 end
 
 
-module THEMES
+module XDG
     class ICONS
         DIRS = Hash.new; NAMES = Hash.new
         for dir in XDG::CONST['XDG ICON DIRS']
@@ -176,9 +205,9 @@ module THEMES
                 }
             end
         end
-        DIRS.each_value { |val|
+        DIRS.each_value do |val|
             NAMES[val.name] = val 
-        }
+        end
 
         def ICONS.[](name)
             ret = NAMES[name]
@@ -195,7 +224,7 @@ end
 
 if __FILE__ == $PROGRAM_NAME
     p IconResolver.search_in_pixmaps('firefox')
-    p THEMES::ICONS['Faenza'].find_icon('firefox', 'scalable', ['svg'])
+    p XDG::ICONS['Faenza'].find_icon('firefox', 'scalable', ['svg'])
     # puts 'Name: ' + theme.name
     # puts theme.inherits
     # require 'benchmark'

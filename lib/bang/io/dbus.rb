@@ -20,12 +20,12 @@
 # ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-require './core'
+require '../io/core'
 
 module Bang
     module DBusSettings
-        SYSTEM_BUS = 'system-bus'
-        SESSION_BUS = 'session-bus'
+        SYSTEM_BUS = 'ruby.dbus.SystemBus'
+        SESSION_BUS = 'ruby.dbus.SessionBus'
         @@connection_type = nil
         @@service = String.new
         def bus=(connection)
@@ -52,7 +52,7 @@ module Bang
         end
 
         def reflect(name)
-            ReflectedObject.new(self[name])
+            ReflectedObject.new(@bus, self[name])
         end
 
         def [](name)
@@ -81,7 +81,8 @@ module Bang
         end
         class ReflectedObject
             attr_reader :obj, :interfaces
-            def initialize(obj)
+            def initialize(bus, obj)
+                @bus = bus
                 @obj = obj
                 @interfaces = @obj.interfaces.map{|i| obj[i]}
             end
@@ -99,6 +100,12 @@ module Bang
                 intf = @interfaces.select{|i| i.methods.include? funct.to_s}[-1]
                 intf.send(funct.to_sym, *args)
             end
+
+            def on(name, &handle)
+                intf = @interfaces.select{|i| i.signals.include? name.to_s}[-1]
+                p intf.name
+                intf.on_signal(@bus, name.to_s, &handle)
+            end; alias :on_signal :on
         end
     end
 end
