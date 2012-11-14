@@ -101,7 +101,7 @@ module Bang
             @timer = Qt::Timer.new(self)
             @timer.set_interval(1000)
             @timer.connect(SIGNAL :timeout) do
-                #impl here
+                #impl here, unfinished
             end
         end
 
