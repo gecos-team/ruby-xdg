@@ -29,8 +29,8 @@ module Bang
     class Volume
         MAX = 65536
         MIN = 0
-        STEP = (5 * 0.01)*65536
-        LIMIT = 2 * 65536
+        STEP = (5 * 0.01) * MAX
+        LIMIT = 2 * MAX
         def initialize
             @volume = (65536*0.75)
             %x|pacmd set-sink-volume 0 #{@volume}|
@@ -41,9 +41,17 @@ module Bang
             raise "pacmd internal error" if response.size > 1
             @volume = volume
         end
+
+        def inc
+            set(STEP + @volume) unless @volume > LIMIT
+        end
+
+        def dec
+            set(STEP - @volume) unless @volume < MIN
+        end
     end
 
-    class Volume < WidgetMenu
+    class VolumeControl < WidgetMenu
         def initialize
             super()
             
