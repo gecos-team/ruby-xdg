@@ -20,3 +20,40 @@
 # ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+require '../gui/core'
+
+
+
+
+module Bang
+    class Volume
+        MAX = 65536
+        MIN = 0
+        STEP = (5 * 0.01)*65536
+        LIMIT = 2 * 65536
+        def initialize
+            @volume = (65536*0.75)
+            %x|pacmd set-sink-volume 0 #{@volume}|
+        end
+
+        def set(volume)
+            response = %x|pacmd set-sink-volume 0 #{@volume}|
+            raise "pacmd internal error" if response.size > 1
+            @volume = volume
+        end
+    end
+
+    class Volume < WidgetMenu
+        def initialize
+            super()
+            
+        end
+
+
+    end
+end
+
+
+if __FILE__ == $PROGRAM_NAME
+
+end

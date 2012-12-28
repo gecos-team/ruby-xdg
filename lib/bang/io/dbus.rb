@@ -86,25 +86,43 @@ module Bang
                 @obj = obj
                 @interfaces = @obj.interfaces.map{|i| obj[i]}
             end
+
+            def iface(name)
+                obj[name]
+            end
+
             def get(prop)
-                intf = @interfaces.select{|i| i[prop.to_s] != nil}[-1]
-                intf[prop.to_s]
+                prop = prop.to_s
+                ifaces = @interfaces.select do |i|
+                    begin
+                        i[prop] != nil
+                    rescue
+                        next
+                    end
+                end
+                ifaces[-1][prop]
             end; alias :[] :get
 
             def set(prop, val)
-                intf = @interfaces.select{|i| i[prop.to_s] != nil}[-1]
-                intf[prop.to_s] = val
+                prop = prop.to_s
+                ifaces = @interfaces.select do |i|
+                    begin
+                        i[prop] != nil
+                    rescue
+                        next
+                    end
+                end
+                ifaces[-1][prop] = val
             end; alias :[]= :set
 
             def call(funct, *args)
-                intf = @interfaces.select{|i| i.methods.include? funct.to_s}[-1]
-                intf.send(funct.to_sym, *args)
+                iface = (@interfaces.select{|i| i.methods.include? funct.to_s})[-1]
+                iface.send(funct.to_sym, *args)
             end
 
-            def on(name, &handle)
-                intf = @interfaces.select{|i| i.signals.include? name.to_s}[-1]
-                p intf.name
-                intf.on_signal(@bus, name.to_s, &handle)
+            def on(name, &handle) # WARNING: seems not to work
+                iface = (@interfaces.select{|i| i.signals.include? name.to_s})[-1]
+                iface.on_signal(@bus, name.to_s, &handle)
             end; alias :on_signal :on
         end
     end
