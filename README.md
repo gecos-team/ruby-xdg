@@ -1,7 +1,7 @@
 bang-desktop
 ============
 
-A Ruby Desktop Environment
+A Ruby XDG Library
 
 __WARNING:__
 This is under heavy development and not ready for production use.
