@@ -3,9 +3,6 @@ bang-desktop
 
 A Ruby XDG Library
 
-__WARNING:__
-This is under heavy development and not ready for production use.
-
 __LICENSE:__
 
     Copyright (c) 2012, Christopher L. Ramsey <christopherlramsey@gmx.us>
