@@ -20,8 +20,8 @@
 # ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-require '../xdg/applications'
-require '../xdg/core'
+require 'xdg/applications'
+require 'xdg/core'
 require 'libxml'
 
 XDG::CONST['XDG MERGE DIRS'] = XDG::CONST['XDG CONFIG DIRS'].map {|d| File.join d, '/menus/applications-merged'}.select{|d| Dir.exists? d}
@@ -637,12 +637,14 @@ class Menu < SubMenu
     end
 
     def to_s
-        return "Name: #{@name}\n"+
+        return "<Menu>\n"+
+        return "<Name>#{@name}</Name>\n"+
         "Includes: #{@includes}\n"+
         "Excludes: #{@excludes}\n"+
         "Layout: #{@layout}\n"+
         "    Submenus: #{@submenus}\n"+
-        "    Entries: #{@entries}"
+        "    Entries: #{@entries}\n"+
+        "</Menu>"
     end
 end
 
