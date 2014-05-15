@@ -637,7 +637,6 @@ class Menu < SubMenu
     end
 
     def to_s
-        return "<Menu>\n"+
         return "<Name>#{@name}</Name>\n"+
         "Includes: #{@includes}\n"+
         "Excludes: #{@excludes}\n"+
