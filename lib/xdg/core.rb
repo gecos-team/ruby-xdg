@@ -146,19 +146,24 @@ class IniFile
 
     def parse(path)
         if path != nil
-            @info = File.new(path)
-            @text = IO.read(@info)
-            return 0 if @text.blank?
-            @data = Array.new
-            sect = nil
-            for line in @text.delete('#.*$').split(/\n/)
-                if (line =~ /^\[.+\]$/)
-                    @data << sect if sect != nil
-                    sect = Section.new(line.delete '[]')
-                elsif (line =~ /.+=.+/)
-                    key, value = line.split('=')
-                    sect[key] = value
-                end
+            begin
+              @info = File.new(path)
+              @text = IO.read(@info)
+              return 0 if @text.blank?
+              @data = Array.new
+              sect = nil
+
+              for line in @text.delete('#.*$').split(/\n/)
+                  if (line =~ /^\[.+\]$/)
+                      @data << sect if sect != nil
+                      sect = Section.new(line.delete '[]')
+                  elsif (line =~ /.+=.+/)
+                      key, value = line.split('=')
+                      sect[key] = value
+                  end
+              end
+            rescue
+              return 0
             end
             @data << sect if @data.empty?
         end
